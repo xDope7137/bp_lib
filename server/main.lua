@@ -83,7 +83,7 @@ Core.Utils = Utils
 ApplyServerCompat(Core)
 
 if Core.Framework and Core.Framework.RegisterCallback then
-    Core.Framework.RegisterCallback("jraxion_lib:GetSkillData", function(source, cb)
+    Core.Framework.RegisterCallback("bp_lib:GetSkillData", function(source, cb)
         local skillData = {}
 
         if GetResourceState("peuren_fishing") == "started" then
@@ -125,7 +125,7 @@ if Core.Framework and Core.Framework.RegisterCallback then
         cb(skillData)
     end)
 
-    Core.Framework.RegisterCallback('jraxion_lib:CreateEntity', function(source, cb, model, pos, args)
+    Core.Framework.RegisterCallback('bp_lib:CreateEntity', function(source, cb, model, pos, args)
         if not source or not model or not pos then return cb(false) end
 
         local result = EntitySync.CreateEntity(model, pos, args or {})
@@ -134,7 +134,7 @@ if Core.Framework and Core.Framework.RegisterCallback then
         cb(result)
     end)
 
-    Core.Framework.RegisterCallback('jraxion_lib:CreatePed', function(source, cb, model, pos, args)
+    Core.Framework.RegisterCallback('bp_lib:CreatePed', function(source, cb, model, pos, args)
         if not source or not model or not pos then return cb(false) end
 
         local result = EntitySync.CreatePed(model, pos, args or {})
@@ -143,7 +143,7 @@ if Core.Framework and Core.Framework.RegisterCallback then
         cb(result)
     end)
 
-    Core.Framework.RegisterCallback('jraxion_lib:CreateVehicle', function(source, cb, model, pos, args)
+    Core.Framework.RegisterCallback('bp_lib:CreateVehicle', function(source, cb, model, pos, args)
         if not source or not model or not pos then return cb(false) end
 
         local result = EntitySync.CreateVehicle(model, pos, args or {})

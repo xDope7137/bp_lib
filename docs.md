@@ -1,14 +1,14 @@
-# jraxion_lib — Function Reference
+# bp_lib — Function Reference
 
-`jraxion_lib` is a compatibility layer that wraps a long list of frameworks, inventories, target systems, fuels, etc. behind a single `Core` table. Every consumer accesses the library via:
+`bp_lib` is a compatibility layer that wraps a long list of frameworks, inventories, target systems, fuels, etc. behind a single `Core` table. Every consumer accesses the library via:
 
 ```lua
-local Core = exports['jraxion_lib']:Core()
+local Core = exports['bp_lib']:Core()
 ```
 
 The `Core` table is assembled in `client/main.lua` and `server/main.lua` by loading the implementation file selected in `shared/config.lua`. Function signatures listed here are the contract every implementation must satisfy.
 
-> **Convention used in this doc:** each entry is grouped by `Core.<module>`. Each function shows side (client/server), source file, signature, and a short usage snippet. "Used by" lists at least one consumer in this monorepo when the function is referenced from another resource — confirmed via grep on `resources/[jraxion]/`.
+> **Convention used in this doc:** each entry is grouped by `Core.<module>`. Each function shows side (client/server), source file, signature, and a short usage snippet. "Used by" lists at least one consumer in this monorepo when the function is referenced from another resource — confirmed via grep on `resources/[bp]/`.
 
 ---
 
@@ -55,16 +55,16 @@ The `Core` table is assembled in `client/main.lua` and `server/main.lua` by load
 
 | Export | Side | Returns | Source |
 |---|---|---|---|
-| `exports['jraxion_lib']:Core()` | client | The `Core` table | `client/main.lua:53` |
-| `exports['jraxion_lib']:Core()` | server | The `Core` table | `server/main.lua:121` |
+| `exports['bp_lib']:Core()` | client | The `Core` table | `client/main.lua:53` |
+| `exports['bp_lib']:Core()` | server | The `Core` table | `server/main.lua:121` |
 
 Standard usage:
 
 ```lua
-local Core = exports['jraxion_lib']:Core()
+local Core = exports['bp_lib']:Core()
 ```
 
-`Used by:` `jraxion_apartments`, `jraxion_cookies`, `jraxion_redzones`, `jraxion_spikes`, `jraxion_truckheist`, `jraxion_mystery`.
+`Used by:` `bp_apartments`, `bp_cookies`, `bp_redzones`, `bp_spikes`, `bp_truckheist`, `bp_mystery`.
 
 ---
 
@@ -74,7 +74,7 @@ Source: `client/framework/{esx,ox,qb,qbx,tmc}.lua` — implementation chosen by 
 
 ### `Core.Framework.PlayerLoaded`
 - **Type:** `boolean` (state field, not a function)
-- **Set to true** when the framework fires its on-loaded event; the lib also fires `jraxion_lib:PlayerLoaded` at that moment.
+- **Set to true** when the framework fires its on-loaded event; the lib also fires `bp_lib:PlayerLoaded` at that moment.
 
 ```lua
 while not Core.Framework.PlayerLoaded do Wait(100) end
@@ -88,7 +88,7 @@ Synchronously triggers a server callback. Internally awaits a promise.
 - **Returns:** whatever the callback returns.
 
 ```lua
-local data = Core.Framework.Callbacks.Trigger('jraxion_lib:GetSkillData')
+local data = Core.Framework.Callbacks.Trigger('bp_lib:GetSkillData')
 ```
 
 ### `Core.Framework.Callbacks.TriggerAsync(name, cb, ...)`
@@ -286,10 +286,10 @@ Core.Notify('Inventory', 'Item added', 'success')
 A net event mirror is registered in `client/main.lua:49`:
 
 ```lua
-TriggerClientEvent('jraxion_lib:notify', src, 'Title', 'Body', 'success')
+TriggerClientEvent('bp_lib:notify', src, 'Title', 'Body', 'success')
 ```
 
-`Used by:` `jraxion_apartments`, `jraxion_cookies`, `jraxion_redzones`, `jraxion_spikes`.
+`Used by:` `bp_apartments`, `bp_cookies`, `bp_redzones`, `bp_spikes`.
 
 ---
 
@@ -345,7 +345,7 @@ Removes a per-entity option (or list of options) by name.
 ### `Core.Target.RemoveBone(bones, names)` / `Core.Target.RemovePlayer(names)` / `Core.Target.RemoveVehicle(names)`
 Companion removers for the matching `Add*` calls.
 
-`Used by:` `jraxion_apartments` (entity & box zones), `jraxion_cookies`.
+`Used by:` `bp_apartments` (entity & box zones), `bp_cookies`.
 
 ---
 
@@ -365,7 +365,7 @@ Core.TextUI.Draw('[E] Open door')
 Core.TextUI.Stop()
 ```
 
-`Used by:` `jraxion_apartments`, `jraxion_redzones`.
+`Used by:` `bp_apartments`, `bp_redzones`.
 
 ---
 
@@ -389,7 +389,7 @@ local ok = Core.ProgressBar('Picking lock', 5000, {
 if not ok then return end
 ```
 
-`Used by:` `jraxion_apartments`, `jraxion_cookies`.
+`Used by:` `bp_apartments`, `bp_cookies`.
 
 ---
 
@@ -416,7 +416,7 @@ Opens a context menu. Each option:
 }
 ```
 
-`Used by:` the bundled skill menu (`client/menu/skillMenu.lua:19`), and external resources such as `jraxion_apartments`.
+`Used by:` the bundled skill menu (`client/menu/skillMenu.lua:19`), and external resources such as `bp_apartments`.
 
 ---
 
@@ -474,7 +474,7 @@ local zoneId = Core.Poly.AddBoxZone(vector3(100,200,30), 5.0, 3.0, 90.0, functio
 end)
 ```
 
-`Used by:` `jraxion_redzones`.
+`Used by:` `bp_redzones`.
 
 ---
 
@@ -497,10 +497,10 @@ Sets the fuel level. `plate` is required for some backends (e.g. `ox_fuel`'s sta
 ### `Core.VehicleKeys.Give(vehicle, plate)`
 Grants ownership/keys to the local player using the configured vehicle-key system.
 
-Some legacy systems also listen for the event `jraxion_lib:RemoveVehKeys`:
+Some legacy systems also listen for the event `bp_lib:RemoveVehKeys`:
 
 ```lua
-TriggerEvent('jraxion_lib:RemoveVehKeys', vehicle, plate)
+TriggerEvent('bp_lib:RemoveVehKeys', vehicle, plate)
 ```
 
 ---
@@ -550,7 +550,7 @@ Restores the player's saved skin (e.g. `qb-clothes:loadPlayerSkin`).
 Source: `client/dispatch/<system>.lua` and `server/dispatch/<system>.lua` (selected by `Config.Dispatch`).
 
 ### Server: `Core.Dispatch(data)`
-The default backend simply broadcasts to all clients via `jraxion_lib:SendDispatchAlert`. Other backends translate `data` into their own dispatch payloads.
+The default backend simply broadcasts to all clients via `bp_lib:SendDispatchAlert`. Other backends translate `data` into their own dispatch payloads.
 
 ```lua
 Core.Dispatch({
@@ -666,7 +666,7 @@ Migrates the entity to the local client and waits up to ~500 ms for control. **R
 ### `Core.EntitySync.AttachEntities(parentNetId, childNetId, offset, rot)`
 Acquires control of both, then `AttachEntityToEntity`. `offset`/`rot` are `vector3`-ish.
 
-`Used by:` `jraxion_truckheist` (vehicle/object spawning + attaching).
+`Used by:` `bp_truckheist` (vehicle/object spawning + attaching).
 
 ---
 
@@ -684,7 +684,7 @@ The module also registers these callbacks for the client wrappers above:
 
 ## Core.Groups (server)
 
-Source: `server/groups/class.lua`. The class is namespaced **per invoking resource** — calling `Core.Groups.Set` from `jraxion_truckheist` and from `jraxion_cookies` produces independent group registries.
+Source: `server/groups/class.lua`. The class is namespaced **per invoking resource** — calling `Core.Groups.Set` from `bp_truckheist` and from `bp_cookies` produces independent group registries.
 
 ### `Core.Groups.Set(source, args, maxPlayers)`
 Creates a group owned by `source`.
@@ -751,8 +751,8 @@ Removes the blip and clears its route.
 
 The lib also handles two net events for you — they create / remove tracked blips:
 
-- `jraxion_lib:Groups:CreateBlip(name, data)`
-- `jraxion_lib:Groups:RemoveBlip(name)`
+- `bp_lib:Groups:CreateBlip(name, data)`
+- `bp_lib:Groups:RemoveBlip(name)`
 
 ---
 
@@ -814,7 +814,7 @@ Core.Notify(Core.Locale('item_added', 'phone'), nil, 'success')
 ```
 
 ### `Core.LoadLocales()`
-Loads `locales/<Config.Language>.json` for the invoking resource (with English fallback). Called once for `jraxion_lib` itself in `client/main.lua:47` and `server/main.lua:64`. **Consumer resources should call this from their own startup if they ship locales.**
+Loads `locales/<Config.Language>.json` for the invoking resource (with English fallback). Called once for `bp_lib` itself in `client/main.lua:47` and `server/main.lua:64`. **Consumer resources should call this from their own startup if they ship locales.**
 
 ### `Core.GetLocales()`
 Returns the full nested `dict` table — `{ resourceName = { key = value, ... } }`. Used by the bundled skill menu to pluck strings without going through `Core.Locale`.
@@ -825,19 +825,19 @@ Returns the full nested `dict` table — `{ resourceName = { key = value, ... } 
 
 Standalone exports (not on `Core`). Backed by `client/inventory/carryItems.lua`.
 
-### `exports['jraxion_lib']:GetCarryItem()`
+### `exports['bp_lib']:GetCarryItem()`
 Returns the item name currently being carried, or `nil`.
 
-### `exports['jraxion_lib']:AddCarryItem(item)`
+### `exports['bp_lib']:AddCarryItem(item)`
 Forces the lib to treat `item` as present in inventory and update animation/prop. Useful for short-lived "carry" effects that aren't tied to an actual inventory slot.
 
-### `exports['jraxion_lib']:RemoveCarryItem(item)`
+### `exports['bp_lib']:RemoveCarryItem(item)`
 Force-clears the carry state for `item`.
 
 The carry system also emits these client events:
 
-- `jraxion_lib:AddedItem(itemName)`
-- `jraxion_lib:RemovedItem(itemName)`
+- `bp_lib:AddedItem(itemName)`
+- `bp_lib:RemovedItem(itemName)`
 
 ---
 
@@ -845,8 +845,8 @@ The carry system also emits these client events:
 
 Source: `client/menu/skillMenu.lua`.
 
-### `exports['jraxion_lib']:OpenSkillMenu()`
-Triggers the `jraxion_lib:GetSkillData` callback and opens a `Core.Menu` listing every skill.
+### `exports['bp_lib']:OpenSkillMenu()`
+Triggers the `bp_lib:GetSkillData` callback and opens a `Core.Menu` listing every skill.
 
 The command exposed by `Config.SkillMenu.Command` (default `skills`) calls the same function.
 
@@ -854,10 +854,10 @@ The command exposed by `Config.SkillMenu.Command` (default `skills`) calls the s
 
 ## EntitySync exports (server)
 
-Source: `server/entitySync/main.lua`. Both currently are passthrough stubs — they return whatever string you pass, but exist so consumers can branch on `if exports['jraxion_lib']:ValidateResourceAccess(...) then`.
+Source: `server/entitySync/main.lua`. Both currently are passthrough stubs — they return whatever string you pass, but exist so consumers can branch on `if exports['bp_lib']:ValidateResourceAccess(...) then`.
 
-### `exports['jraxion_lib']:GetResourceSessionToken(resourceName)`
-### `exports['jraxion_lib']:ValidateResourceAccess(resourceName)`
+### `exports['bp_lib']:GetResourceSessionToken(resourceName)`
+### `exports['bp_lib']:ValidateResourceAccess(resourceName)`
 
 ---
 
@@ -865,7 +865,7 @@ Source: `server/entitySync/main.lua`. Both currently are passthrough stubs — t
 
 Triggered with `Core.Framework.Callbacks.Trigger(name, ...)` from a client.
 
-### `jraxion_lib:GetSkillData`
+### `bp_lib:GetSkillData`
 Server source: `server/main.lua:79`.
 
 Returns an array of `{ locale, xp, level }` for any `peuren_*` skill resource currently started:
@@ -879,23 +879,23 @@ Returns an array of `{ locale, xp, level }` for any `peuren_*` skill resource cu
 }
 ```
 
-### `jraxion_lib:GetPlayerInventory`
+### `bp_lib:GetPlayerInventory`
 Source: `server/inventory/<system>.lua`.
 
 Returns the player's items in the lib's normalized shape (`{ item, count, metadata }[]`).
 
-### `jraxion_lib:inventory:RegisterStash`
+### `bp_lib:inventory:RegisterStash`
 Source: `server/inventory/ox_inventory.lua`.
 
 Payload: `{ stashName, slots, weight }`. Registers a stash and returns `true`. Used internally by `Core.Inventory.OpenStash`.
 
-### `jraxion_lib:SpawnVehicle`
+### `bp_lib:SpawnVehicle`
 Source: `server/framework/qbx.lua` (and the qb framework file).
 
 Args (qbx): `(model, pos)`. Returns `netId`. The qb client wrapper calls it with `(model, pos, 90)` for spawn heading.
 
 ```lua
-local netId = Core.Framework.Callbacks.Trigger('jraxion_lib:SpawnVehicle', 'adder', GetEntityCoords(PlayerPedId()))
+local netId = Core.Framework.Callbacks.Trigger('bp_lib:SpawnVehicle', 'adder', GetEntityCoords(PlayerPedId()))
 local vehicle = NetToVeh(netId)
 ```
 
@@ -910,21 +910,21 @@ Server callbacks backing `Core.EntitySync.Create*`. Not generally invoked direct
 
 | Event | Direction | Payload | Notes |
 |---|---|---|---|
-| `jraxion_lib:PlayerLoaded` | local | – | Mirrored from each framework's player-loaded event |
-| `jraxion_lib:notify` | server → client | `(title, desc, type)` | Calls `Core.Notify` |
-| `jraxion_lib:SendDispatchAlert` | server → client | `data` table | Default dispatch backend only |
-| `jraxion_lib:Groups:CreateBlip` | server → client | `(name, data)` | Creates and tracks a blip |
-| `jraxion_lib:Groups:RemoveBlip` | server → client | `name` | Removes a tracked blip |
-| `jraxion_lib:AddedItem` | local | `itemName` | Fired when CarryItems registers presence |
-| `jraxion_lib:RemovedItem` | local | `itemName` | Fired when CarryItems clears presence |
+| `bp_lib:PlayerLoaded` | local | – | Mirrored from each framework's player-loaded event |
+| `bp_lib:notify` | server → client | `(title, desc, type)` | Calls `Core.Notify` |
+| `bp_lib:SendDispatchAlert` | server → client | `data` table | Default dispatch backend only |
+| `bp_lib:Groups:CreateBlip` | server → client | `(name, data)` | Creates and tracks a blip |
+| `bp_lib:Groups:RemoveBlip` | server → client | `name` | Removes a tracked blip |
+| `bp_lib:AddedItem` | local | `itemName` | Fired when CarryItems registers presence |
+| `bp_lib:RemovedItem` | local | `itemName` | Fired when CarryItems clears presence |
 | `<resource>:group:MemberAdded` / `:MemberRemoved` / `:Updated` / `:Deleted` | server → client | `(data, isOwner)` | Resource-namespaced group lifecycle |
 
 ### Server
 
 | Event | Direction | Payload | Notes |
 |---|---|---|---|
-| `jraxion_lib:RemoveVehKeys` | local | `(vehicle, plate)` | Optional companion to `Core.VehicleKeys.Give` for backends that support removal |
-| `jraxion_lib:group:OwnerChanged` | local | – | Fired by some group backends when ownership migrates |
+| `bp_lib:RemoveVehKeys` | local | `(vehicle, plate)` | Optional companion to `Core.VehicleKeys.Give` for backends that support removal |
+| `bp_lib:group:OwnerChanged` | local | – | Fired by some group backends when ownership migrates |
 
 ---
 
@@ -976,7 +976,7 @@ Config.Groups = {
 ### Bootstrap (client)
 
 ```lua
-local Core = exports['jraxion_lib']:Core()
+local Core = exports['bp_lib']:Core()
 while not Core.Framework.PlayerLoaded do Wait(100) end
 
 Core.Notify('Welcome', 'You have joined the server', 'success')
@@ -985,7 +985,7 @@ Core.Notify('Welcome', 'You have joined the server', 'success')
 ### Bootstrap (server)
 
 ```lua
-local Core = exports['jraxion_lib']:Core()
+local Core = exports['bp_lib']:Core()
 
 Core.Framework.RegisterCallback('myresource:fetch', function(src, cb, id)
     cb(Core.Database.FetchSync('SELECT * FROM things WHERE id=?', { id }))

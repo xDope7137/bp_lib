@@ -2,8 +2,8 @@ name: Release
 
 on:
   push:
-    tags:
-      - "v*"
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
@@ -24,12 +24,8 @@ jobs:
             echo "Could not read version from fxmanifest.lua" >&2
             exit 1
           fi
-          if [ "${GITHUB_REF_TYPE}" = "tag" ] && [ "${GITHUB_REF_NAME}" != "v${VERSION}" ]; then
-            echo "Tag ${GITHUB_REF_NAME} does not match fxmanifest version ${VERSION}" >&2
-            exit 1
-          fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=v${VERSION}-build.${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
           echo "zip_name=bp_lib-v${VERSION}.zip" >> "$GITHUB_OUTPUT"
 
       - name: Package bp_lib (drag-and-drop folder)
@@ -48,16 +44,17 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.meta.outputs.tag }}
-          name: bp_lib v${{ steps.meta.outputs.version }}
+          name: bp_lib v${{ steps.meta.outputs.version }} (build ${{ github.run_number }})
           body: |
             ## Install
 
             1. Download **${{ steps.meta.outputs.zip_name }}** below.
-            2. Extract it. You get a folder named **`bp_lib`**.
-            3. Move **`bp_lib`** into your server's `resources` folder.
-            4. Add `ensure bp_lib` to `server.cfg`, after your framework and `ox_lib`.
+            2. Extract the zip — you will get a folder named **`bp_lib`** (not `bp_lib-main`).
+            3. Drag **`bp_lib`** into your server's `resources` folder.
+            4. Add `ensure bp_lib` to your `server.cfg`.
 
-            Docs: https://docs.bhavikp.in/scripts/bp-lib/
+            **Build:** ${{ github.run_number }}  
+            **Commit:** [`${{ github.sha }}`](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})
           files: ${{ steps.meta.outputs.zip_name }}
           generate_release_notes: true
           fail_on_unmatched_files: true

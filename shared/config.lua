@@ -12,7 +12,7 @@ Config.FrameworkResource = nil -- Framework resource name (auto-filled when usin
     'auto' - (RECOMMENDED) Scans your server and picks the correct framework automatically
     esx    - (default resource name: es_extended)
     qb     - (default resource name: qb-core)
-    qbx    - (Uncomment qbx_core export in jraxion_lib/fxmanifest.lua file)
+    qbx    - (Uncomment qbx_core export in bp_lib/fxmanifest.lua file)
     ox     - (Uncomment ox_core imports in fxmanifest.lua file)
     tmc    - (default resource name: core)
 ]]
@@ -62,7 +62,7 @@ Config.ProgessBarResource = nil -- The progress bar system folder name that you'
 --[[
     'auto'  - (RECOMMENDED) Scans your server and picks the correct progress bar automatically
     tmc
-    ox_lib  - (Uncomment ox_lib import in jraxion_lib/fxmanifest.lua file)
+    ox_lib  - (Uncomment ox_lib import in bp_lib/fxmanifest.lua file)
     qb
     tgiann
 ]]
@@ -74,7 +74,7 @@ Config.MenuResource = nil -- The menu system folder name that you're using (auto
     'auto'          - (RECOMMENDED) Scans your server and picks the correct menu system automatically
     tmc
     ps-ui
-    ox_lib          - (Uncomment ox_lib import in jraxion_lib/fxmanifest.lua file)
+    ox_lib          - (Uncomment ox_lib import in bp_lib/fxmanifest.lua file)
     qb
     nh-context
     esx_menu_default
@@ -86,7 +86,7 @@ Config.InputResource = nil -- The input system folder name that you're using (au
 --SUPPORTED INPUT SCRIPT NAMES TO PUT IN: Config.Input = ""
 --[[
     'auto'    - (RECOMMENDED) Scans your server and picks the correct input system automatically
-    ox_lib    - (Uncomment ox_lib import in jraxion_lib/fxmanifest.lua file)
+    ox_lib    - (Uncomment ox_lib import in bp_lib/fxmanifest.lua file)
     qb-input
     nh-keyboard
 ]]
@@ -97,7 +97,7 @@ Config.TextUIResource = nil -- The TextUI system folder name that you're using (
 --[[
     'auto'      - (RECOMMENDED) Scans your server and picks the correct TextUI system automatically
     ps-ui
-    ox_lib      - (Uncomment ox_lib import in jraxion_lib/fxmanifest.lua file)
+    ox_lib      - (Uncomment ox_lib import in bp_lib/fxmanifest.lua file)
     okokTextUI
     jg-textui
     qb
@@ -109,7 +109,7 @@ Config.PolyResource = nil -- The Polyzone system folder name that you're using (
 --[[
     'auto'    - (RECOMMENDED) Scans your server and picks the correct zone system automatically
     polyzone
-    ox_lib    - (Uncomment ox_lib import in jraxion_lib/fxmanifest.lua file)
+    ox_lib    - (Uncomment ox_lib import in bp_lib/fxmanifest.lua file)
     qb
 ]]
 
@@ -121,7 +121,7 @@ Config.NotificationsResource = nil -- The notification system folder name that y
     tmc
     peuren_notify
     ps-ui
-    ox_lib       - (Uncomment ox_lib import in jraxion_lib/fxmanifest.lua file)
+    ox_lib       - (Uncomment ox_lib import in bp_lib/fxmanifest.lua file)
     qb
     esx
     okok
@@ -244,7 +244,7 @@ Config.VehiclePropertiesResource = nil -- The vehicle properties system resource
 --SUPPORTED VEHICLE PROPERTIES SCRIPT NAMES TO PUT IN: Config.VehicleProperties = ""
 --[[
     'auto' - (RECOMMENDED) Scans your server and picks the correct vehicle properties system automatically
-    ox_lib - (Uncomment ox_lib import in jraxion_lib/fxmanifest.lua file)
+    ox_lib - (Uncomment ox_lib import in bp_lib/fxmanifest.lua file)
     qb
     qbx
     esx
@@ -256,16 +256,16 @@ Config.Logger = 'auto' -- Logger system resource name
 --[[
     'auto'  - (RECOMMENDED) Scans your server and picks the correct logger automatically
     discord
-    ox_lib  - (Uncomment ox_lib import in jraxion_lib/fxmanifest.lua file)
+    ox_lib  - (Uncomment ox_lib import in bp_lib/fxmanifest.lua file)
 ]]
 
 
 Config.SkillMenu = { -- Configuration for skill menu.
     Enabled = true, -- Should the Skill Menu be enabled
-    Command = "skills" -- The comand which opens the skill menu. Set this to false to disable it. Skill menu can be also opened by using exports["jraxion_lib"]:OpenSkillMenu()
+    Command = "skills" -- The comand which opens the skill menu. Set this to false to disable it. Skill menu can be also opened by using exports["bp_lib"]:OpenSkillMenu()
 }
 
-Config.Groups = { -- Configuration for multiplier jobs (jraxion only)
+Config.Groups = { -- Configuration for multiplier jobs
     MemberLimit = 4,--Default maximum group member amount in a group
     Timeout = { min = 0, sec = 30 }, --The time in which the group owner has to return to game before assigning a new group leader
     password = {
@@ -528,14 +528,14 @@ local function AutoDetectConfig()
 
                     Config.AutoDetected[category.key] = option.module
 
-                    DebugPrint(string.format("[jraxion_lib] Auto-detected %s -> %s (%s)", category.key, option.module, detectedResource))
+                    DebugPrint(string.format("[bp_lib] Auto-detected %s -> %s (%s)", category.key, option.module, detectedResource))
                     break
                 end
             end
 
             -- Warn when the customer explicitly requested 'auto' but nothing was found
             if explicitAuto[category.key] and Config[category.key] == AUTO then
-                print(string.format("^3[jraxion_lib] WARNING: Config.%s is set to 'auto' but no supported resource was detected. The module will be disabled.^0", category.key))
+                print(string.format("^3[bp_lib] WARNING: Config.%s is set to 'auto' but no supported resource was detected. The module will be disabled.^0", category.key))
                 Config[category.key] = nil -- normalise to nil so LoadModule skips gracefully
             end
         end
@@ -546,15 +546,15 @@ local function AutoDetectConfig()
         Config.Dispatch = "default"
 
         if Config.DispatchResource == nil or Config.DispatchResource == "" then
-            Config.DispatchResource = GetCurrentResourceName and GetCurrentResourceName() or "jraxion_lib"
+            Config.DispatchResource = GetCurrentResourceName and GetCurrentResourceName() or "bp_lib"
         end
 
         Config.AutoDetected.Dispatch = "default"
-        DebugPrint("[jraxion_lib] Auto-detected Dispatch -> default (fallback)")
+        DebugPrint("[bp_lib] Auto-detected Dispatch -> default (fallback)")
     end
 
     -- ── Startup resolution summary (always visible, not gated by Debug) ──────
-    local resourceName = (GetCurrentResourceName and GetCurrentResourceName()) or "jraxion_lib"
+    local resourceName = (GetCurrentResourceName and GetCurrentResourceName()) or "bp_lib"
     print(string.format("^5[%s] ^2Auto-configuration complete:^0", resourceName))
 
     local summaryOrder = {

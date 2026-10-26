@@ -3,9 +3,41 @@
     after `lib.callback.await` on the client can break the script host. We bridge the legacy
     `function(source, cb, ...)` style by capturing `cb(...)` synchronously and returning the
     value from the lib handler (ox_lib's supported pattern).
+
+    ox_lib's `lib.callback.register` calls RegisterNetEvent, which APPENDS handlers rather
+    than replacing them. If a consumer script restarts, the previous handler (with a now-dead
+    user callback reference) stays registered and fires alongside the new one, printing
+    "Execution of function reference in script host failed:" on every invocation. We work
+    around this by registering the ox_lib handler exactly once per callback name and mutating
+    the captured `userCb` slot on subsequent registrations.
 ]]
+local registeredCallbacks = {}
+
+AddEventHandler('onResourceStop', function(resourceName)
+    for _, entry in pairs(registeredCallbacks) do
+        if entry.owner == resourceName then
+            entry.cb = nil
+            entry.owner = nil
+        end
+    end
+end)
+
 local function registerLibCallback(name, userCb)
+    local owner = GetInvokingResource() or GetCurrentResourceName()
+    local entry = registeredCallbacks[name]
+    if entry then
+        entry.cb = userCb
+        entry.owner = owner
+        return
+    end
+
+    entry = { cb = userCb, owner = owner }
+    registeredCallbacks[name] = entry
+
     lib.callback.register(name, function(source, ...)
+        local currentCb = entry.cb
+        if not currentCb then return nil end
+
         local ret
         local done = false
         local function finish(...)
@@ -21,13 +53,13 @@ local function registerLibCallback(name, userCb)
             end
         end
 
-        local ok, err = pcall(userCb, source, finish, ...)
+        local ok, err = pcall(currentCb, source, finish, ...)
         if not ok then
-            print(('^1[jraxion_lib]^0 RegisterCallback %q failed: %s'):format(tostring(name), tostring(err)))
+            print(('^1[bp_lib]^0 RegisterCallback %q failed: %s'):format(tostring(name), tostring(err)))
             return nil
         end
         if not done then
-            print(('^1[jraxion_lib]^0 RegisterCallback %q never called cb()'):format(tostring(name)))
+            print(('^1[bp_lib]^0 RegisterCallback %q never called cb()'):format(tostring(name)))
             return nil
         end
         return ret
@@ -151,7 +183,7 @@ local function spawnVehicleCallback(player, model, pos)
     return netId
 end
 
-lib.callback.register('jraxion_lib:SpawnVehicle', spawnVehicleCallback)
+lib.callback.register('bp_lib:SpawnVehicle', spawnVehicleCallback)
 lib.callback.register('peuren_lib:SpawnVehicle', spawnVehicleCallback)
 
 return Framework

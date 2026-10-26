@@ -17,11 +17,11 @@ local function registerLibCallback(name, userCb)
 
         local ok, err = pcall(userCb, source, finish, ...)
         if not ok then
-            print(('^1[jraxion_lib]^0 RegisterCallback %q failed: %s'):format(tostring(name), tostring(err)))
+            print(('^1[bp_lib]^0 RegisterCallback %q failed: %s'):format(tostring(name), tostring(err)))
             return nil
         end
         if not done then
-            print(('^1[jraxion_lib]^0 RegisterCallback %q never called cb()'):format(tostring(name)))
+            print(('^1[bp_lib]^0 RegisterCallback %q never called cb()'):format(tostring(name)))
             return nil
         end
         return ret
@@ -79,7 +79,7 @@ Framework = {
             xPlayer.set('accounts', accounts)
 
             if account == 'cash' then
-                TriggerClientEvent("jraxion_lib:notify", player, Core.Locale("paid_title"), Core.Locale("you_got_paid"):format(amount), "success")
+                TriggerClientEvent("bp_lib:notify", player, Core.Locale("paid_title"), Core.Locale("you_got_paid"):format(amount), "success")
                 exports.ox_inventory:AddItem(player, 'money', amount)
             end
 
@@ -150,7 +150,7 @@ Framework = {
     },
 }
 
-lib.callback.register('jraxion_lib:SpawnVehicle', function(player, model, pos, heading)
+lib.callback.register('bp_lib:SpawnVehicle', function(player, model, pos, heading)
     local xPlayer = Ox.GetPlayer(player)
     if not xPlayer then return end
     return Ox.CreateVehicle({ model = model, owner = player.charid }, pos, heading)

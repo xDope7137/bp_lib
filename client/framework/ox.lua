@@ -24,14 +24,14 @@ Framework = {
     },
 
     SpawnVehicle = function(model, pos, cb, networked)
-        local result = lib.callback.await('jraxion_lib:SpawnVehicle', false, model, pos, 90)
+        local result = lib.callback.await('bp_lib:SpawnVehicle', false, model, pos, 90)
         cb(NetToVeh(result))
     end
 }
 
 AddEventHandler('esx:onPlayerSpawn', function()
     TriggerEvent('peuren_lib:PlayerLoaded')
-    TriggerEvent('jraxion_lib:PlayerLoaded')
+    TriggerEvent('bp_lib:PlayerLoaded')
     Framework.PlayerLoaded = true
 end)
 

@@ -1,11 +1,14 @@
 fx_version 'cerulean'
 game 'gta5'
-
-author 'PEUREN DEVELOPMENT - peuren.tebex.io'
-version '0.6.8'
+author 'BP Development'
+version '0.7.0'
 
 lua54 'yes'
 use_experimental_fxv2_oal 'yes'
+
+name 'bp_lib'
+url 'https://tebex.bhavikp.in/'
+repository 'https://github.com/xDope7137/bp_lib'
 
 client_scripts { 
   -- '@ox_core/imports/client.lua', --Remove the two -- if you're using ox_core in your server

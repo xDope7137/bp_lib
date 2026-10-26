@@ -62,9 +62,9 @@ function ApplyClientCompat(core)
     core.Math = core.Math or (function()
         local chunk = LoadResourceFile(GetCurrentResourceName(), 'client/math/math.lua')
         if not chunk then return nil end
-        local fn, err = load(chunk, '@@jraxion_lib/client/math/math.lua')
+        local fn, err = load(chunk, '@@bp_lib/client/math/math.lua')
         if not fn then
-            print(('^1[jraxion_lib]^0 Failed to load Math module: %s'):format(err))
+            print(('^1[bp_lib]^0 Failed to load Math module: %s'):format(err))
             return nil
         end
         return fn()

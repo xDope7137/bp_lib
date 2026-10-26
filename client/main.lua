@@ -52,7 +52,7 @@ ApplyClientCompat(Core)
 Core.LoadLocales()
 
 if Core.Notify then
-    RegisterNetEvent("jraxion_lib:notify", function(title, desc, type)
+    RegisterNetEvent("bp_lib:notify", function(title, desc, type)
         Core.Notify(title, desc, type)
     end)
 end

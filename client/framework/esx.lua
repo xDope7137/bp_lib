@@ -61,7 +61,7 @@ Framework = {
 
 AddEventHandler('esx:onPlayerSpawn', function()
     TriggerEvent('peuren_lib:PlayerLoaded')
-    TriggerEvent('jraxion_lib:PlayerLoaded')
+    TriggerEvent('bp_lib:PlayerLoaded')
     Framework.PlayerLoaded = true
     ESX.PlayerData = ESX.GetPlayerData()
 end)
