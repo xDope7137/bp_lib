@@ -1,4 +1,4 @@
-# FiveM Framework Bridge Library for ESX, QBCore # bp_lib Qbox
+# FiveM Framework Bridge Library for ESX, QBCore & Qbox
 
 > **Full documentation: [https://docs.bhavikp.in/scripts/bp-lib/](https://docs.bhavikp.in/scripts/bp-lib/)**  
 > Install steps, every config option, exports and fixes for common problems.
