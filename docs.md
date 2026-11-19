@@ -551,6 +551,20 @@ local held = Core.Inventory.FindWithMeta(src, 'bank_card', { card = card.id })
 Core.Inventory.RemoveWithMeta(src, 'bank_card', { card = card.id })
 ```
 
+### `Core.Inventory.OnUseWithMeta(item, fn)` (0.13.0)
+Calls `fn(source, metadata, slot)` when a player uses one `item`, with that item's own metadata:
+`item.metadata` on ox_inventory, `item.info` on qb-inventory, qb-inventory-new and qs-inventory.
+`metadata` is always a table (empty when the item has none). `fn` runs in `pcall`, so an error in
+it is printed and never breaks the inventory. It registers through `RegisterUsableItem` below.
+Returns `true`, or `false` and why: `bad_item`, `unsupported_inventory` (any other inventory),
+`failed`. There is no Off (frameworks cannot unregister a usable item): register once, at start.
+
+```lua
+Core.Inventory.OnUseWithMeta('bank_statement', function(src, meta, slot)
+    if type(meta.statement) == 'string' then TriggerClientEvent('my_script:paper', src, meta.statement) end
+end)
+```
+
 ### `Core.ItemMetaSupport()` (0.11.0, server)
 The inventory's name when the three functions above work on this server. Otherwise `false` and
 `'no_inventory'` (no inventory found, `Core.Inventory` is `nil`) or `'unsupported_inventory'`.
@@ -1401,6 +1415,21 @@ Server callbacks backing `Core.EntitySync.Create*`. Not generally invoked direct
 |---|---|---|---|
 | `bp_lib:RemoveVehKeys` | local | `(vehicle, plate)` | Optional companion to `Core.VehicleKeys.Give` for backends that support removal |
 | `bp_lib:group:OwnerChanged` | local | – | Fired by some group backends when ownership migrates |
+
+---
+
+## BP Development notices (0.13.0+)
+
+bp_lib checks `https://tebex.bhavikp.in/announcements.json` and prints short BP Development
+notices (new script launches, discount codes) in the **server console**. Nothing is shown in game
+or to players, and nothing about your server is sent. Notices for scripts you already run are skipped.
+
+```cfg
+set bp_announce 0          # turn the notices off
+set bp_announce_hours 6    # re-check interval in hours, 0 = only at start
+```
+
+`bp_announcements` in the server console prints the current notices again.
 
 ---
 

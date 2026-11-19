@@ -1,7 +1,7 @@
 fx_version 'cerulean'
 game 'gta5'
 author 'BP Development'
-version '0.12.2'
+version '0.13.0'
 bp_script 'bp_lib'
 
 lua54 'yes'
@@ -49,6 +49,7 @@ server_scripts {
   'server/extras.lua',
   'server/jobextras.lua',
   'server/main.lua',
+  'server/announce.lua',
 }
 
 files { 'locales/*.json', 'client/**/*.lua' }

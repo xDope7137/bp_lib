@@ -13,6 +13,7 @@
       Core.Database.Transaction          all or nothing, with an optional row count per query
       Core.Database.BatchInsert          many rows in one INSERT statement
       Core.Inventory.GiveWithMeta / FindWithMeta / RemoveWithMeta, Core.ItemMetaSupport
+      Core.Inventory.OnUseWithMeta       (0.13.0) a used item's metadata to a callback
 
     Additions only: Money.Give and Money.Remove keep their arguments and results. They are
     wrapped so a money event fired while they run can say which script asked for the change.
@@ -538,6 +539,9 @@ Adapters['qs-inventory'] = function(res)
     }
 end
 
+-- Where each adapter's inventory keeps an item's metadata (OnUseWithMeta).
+local META_FIELD = { ox_inventory = 'metadata', ['qb-inventory'] = 'info', ['qb-inventory-new'] = 'info', ['qs-inventory'] = 'info' }
+
 local function metaSupport(core)
     if not core.Inventory then return false, 'no_inventory' end
     local name = Config.Inventory
@@ -618,6 +622,28 @@ local function attachInventory(core)
         local okTake, taken = pcall(a.take, s, item, count, first.slot)
         if okTake and taken then return true end
         return false, 'failed'
+    end
+
+    --- (0.13.0) Calls `fn(src, metadata, slot)` (in pcall) when a player uses one `item`; `metadata` is always a
+    --- table (empty when the item has none). Registered through the inventory's usable-item hook (Core.Inventory
+    --- .RegisterUsableItem: the framework's for ox_inventory, the inventory's own for qs). The metadata is read
+    --- from `item.metadata` (ox_inventory) or `item.info` (qb-inventory, qb-inventory-new, qs-inventory).
+    --- true, or false plus 'bad_item' / 'unsupported_inventory' / 'failed'. No Off: frameworks cannot
+    --- unregister, so register once at start. `fn` may be a function or a function reference (exports).
+    inventory.OnUseWithMeta = function(item, fn)
+        if type(item) ~= 'string' or item == '' then return false, 'bad_item' end
+        local field = META_FIELD[name]
+        if not field or not Adapters[name] or inventory.RegisterUsableItem == nil then return false, 'unsupported_inventory' end
+        if fn == nil then return false, 'failed' end
+        local ok = pcall(inventory.RegisterUsableItem, item, function(src, it, extra)
+            local data = type(it) == 'table' and it or (type(extra) == 'table' and extra) or {}
+            local meta = data[field]
+            if type(meta) ~= 'table' then meta = {} end
+            local okF, err = pcall(fn, tonumber(src), meta, data.slot)
+            if not okF then print(('^3[bp_lib] OnUseWithMeta(%s): %s^7'):format(item, tostring(err))) end
+        end)
+        if not ok then return false, 'failed' end
+        return true
     end
 end
 
