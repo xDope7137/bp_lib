@@ -7,7 +7,7 @@ Inventory = {
     RemoveCarriableItem = CarryItems.RemoveCarriableItem,
     OpenStash = function(stashName, maxWeight, slots)
         local data = { label = stashName, maxweight = maxWeight, slots = slots }
-        TriggerServerEvent("peuren_lib:qb-inventory-new:openStash", stashName, data)
+        TriggerServerEvent("bp_lib:qb-inventory-new:openStash", stashName, data)
     end
 }
 

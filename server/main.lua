@@ -57,7 +57,8 @@ function VersionCheck(repository)
 	end)
 end
 
-VersionCheck('Peuren/peuren_lib')
+-- bp_lib's own update check is bp_versioncheck.lua, against tebex.bhavikp.in/versions.
+-- VersionCheck stays exported as Core.Version for scripts that still pass a GitHub repo.
 
 Core = {}
 exports("Core", function()
@@ -65,22 +66,36 @@ exports("Core", function()
 end)
 
 Core.Locale = locale
-loadLocales()
+loadLocales(resource)
 Core.Framework = LoadModule("framework", Config.Framework)
 Core.Database = LoadModule("database", Config.SQLConnector)
 Core.Inventory = LoadModule("inventory", Config.Inventory)
 Core.Dispatch = LoadModule("dispatch", Config.Dispatch)
+Core.Phone = LoadModule("phone", Config.Phone)
 Core.Weather = LoadModule("weathersync", Config.WeatherSync)
 Core.Logs = LoadModule("logger", Config.Logger)
 Core.EntitySync = EntitySync
 Core.Groups = Groups
+Core.Vehicles = VehicleIndex
 Core.Version = VersionCheck
 Core.LoadLocales = loadLocales
 Core.GetLocales = getLocales
 Core.Print = Utils.Print
 Core.Utils = Utils
 
+-- Shared helpers (shared/helpers.lua, server/helpers.lua): lib.Say, lib.Plate.Normalize ...
+-- 1 = 0.10.0 helpers. 2 = 0.11.0: Amount, Lock, IsNear, Role, Money.TryRemove, OnMoneyChange,
+-- SavePlayer, Database.Transaction and BatchInsert, the inventory metadata helpers.
+-- 3 = 0.12.0: the job and gang reads (Framework.JobOf, GangOf, OnJob, JobList, PaycheckSociety,
+-- CharactersWithJob; server/jobextras.lua).
+Core.HelpersVersion = 3
+for _, list in ipairs({ Helpers.Shared, Helpers.Server }) do
+    for _, name in ipairs(list) do Core[name] = Helpers[name] end
+end
+
 ApplyServerCompat(Core)
+AttachServerExtras(Core)
+AttachJobExtras(Core)
 
 if Core.Framework and Core.Framework.RegisterCallback then
     Core.Framework.RegisterCallback("bp_lib:GetSkillData", function(source, cb)

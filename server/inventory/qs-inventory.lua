@@ -41,11 +41,11 @@ Inventory = {
     end
 }
 
-Core.Framework.RegisterCallback("peuren_lib:GetPlayerInventory", function(player, cb)
+Core.Framework.RegisterCallback("bp_lib:GetPlayerInventory", function(player, cb)
     cb(Inventory.GetItems(player))
 end)
 
-Core.Framework.RegisterCallback("peuren_lib:inventory:RegisterStash", function(player, cb, data)
+Core.Framework.RegisterCallback("bp_lib:inventory:RegisterStash", function(player, cb, data)
     exports[Config.InventoryResource]:RegisterStash(player, data.stashName, data.slots, data.weight) 
     cb(true)
 end)

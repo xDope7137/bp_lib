@@ -29,6 +29,7 @@ local function registerLibCallback(name, userCb)
 end
 
 Framework = {
+    Name = "ox",
     RegisterCallback = function(name, cb, ...)
         registerLibCallback(name, cb)
     end,

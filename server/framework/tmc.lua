@@ -1,6 +1,7 @@
 TMC = exports[Config.FrameworkResource]:getCoreObject()
 
 Framework = {
+    Name = "tmc",
     RegisterCallback = function(name, cb, ...)
         TMC.Functions.RegisterServerCallback(name, cb)
     end,

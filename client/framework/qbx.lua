@@ -51,13 +51,12 @@ Framework = {
 }
 
 AddEventHandler('QBCore:Client:OnPlayerLoaded', function()
-    TriggerEvent('peuren_lib:PlayerLoaded')
-    TriggerEvent('bp_lib:PlayerLoaded')
     Framework.PlayerLoaded = true
+    TriggerEvent('bp_lib:PlayerLoaded')
 end)
 
 RegisterNetEvent('QBCore:Client:OnJobUpdate', function(newJob)
-    TriggerEvent('peuren_lib:PlayerJobUpdated', newJob)
+    TriggerEvent('bp_lib:PlayerJobUpdated', newJob)
 end)
 
 return Framework

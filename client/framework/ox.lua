@@ -30,9 +30,8 @@ Framework = {
 }
 
 AddEventHandler('esx:onPlayerSpawn', function()
-    TriggerEvent('peuren_lib:PlayerLoaded')
-    TriggerEvent('bp_lib:PlayerLoaded')
     Framework.PlayerLoaded = true
+    TriggerEvent('bp_lib:PlayerLoaded')
 end)
 
 return Framework

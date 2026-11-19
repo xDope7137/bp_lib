@@ -24,7 +24,7 @@ Dispatch = function(data)
     end
 end
 
-RegisterNetEvent('peuren_lib:server:dispatch:send', function(data)
+RegisterNetEvent('bp_lib:server:dispatch:send', function(data)
     Dispatch(data)
 end)
 

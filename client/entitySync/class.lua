@@ -4,21 +4,21 @@ EntitySync = {
     CreateEntity = function(model, pos, args)
         if not model or not pos then return end
 
-        local result = Core.Framework.Callbacks.Trigger('peuren_lib:CreateEntity', model, pos, args)
+        local result = Core.Framework.Callbacks.Trigger('bp_lib:CreateEntity', model, pos, args)
         return result
     end,
 
     CreateVehicle = function(model, pos, args)
         if not model or not pos then return end
 
-        local result = Core.Framework.Callbacks.Trigger('peuren_lib:CreateVehicle', model, pos, args)
+        local result = Core.Framework.Callbacks.Trigger('bp_lib:CreateVehicle', model, pos, args)
         return result
     end,
 
     CreatePed = function(model, pos, args)
         if not model or not pos then return end
 
-        local result = Core.Framework.Callbacks.Trigger('peuren_lib:CreatePed', model, pos, args)
+        local result = Core.Framework.Callbacks.Trigger('bp_lib:CreatePed', model, pos, args)
         return result
     end,
 

@@ -1,5 +1,5 @@
 Dispatch = function(data)
-    TriggerClientEvent('peuren_lib:sendDispatchAlert', -1, data)
+    TriggerClientEvent('bp_lib:sendDispatchAlert', -1, data)
 end
 
 return Dispatch

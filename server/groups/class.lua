@@ -275,7 +275,7 @@ Groups = {
         for _, group in pairs(Groups.Data) do
             for _, data in pairs(group) do
                 if data.players[tostring(source)] and data.resource ~= resource then
-                    TriggerClientEvent("peuren_lib:notify", source, locale("group_job_title"), locale("you_are_already_working"), "error")
+                    TriggerClientEvent("bp_lib:notify", source, locale("group_job_title"), locale("you_are_already_working"), "error")
                     return true
                 end
             end

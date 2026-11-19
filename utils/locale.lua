@@ -1,11 +1,12 @@
 local dict = {}
+local libResource = GetCurrentResourceName()
 
 function locale(str, ...)
-    local resource = GetInvokingResource() or GetCurrentResourceName()
-    local lstr = dict[resource][str]
+    local resource = GetInvokingResource() or libResource
+    local lstr = dict[resource] and dict[resource][str]
 
-    if not lstr and dict["peuren_lib"][str] then
-        lstr = dict["peuren_lib"][str]
+    if not lstr and dict[libResource] then
+        lstr = dict[libResource][str]
     end
 
     if lstr then
@@ -23,8 +24,10 @@ function getLocales()
     return dict
 end
 
-function loadLocales()
-    local resource = GetInvokingResource() or GetCurrentResourceName()
+-- The lib passes its own name: when it is started from another resource's
+-- command, GetInvokingResource() returns that resource instead of nil.
+function loadLocales(resource)
+    resource = resource or GetInvokingResource() or libResource
     local locales = json.decode(LoadResourceFile(resource, ('locales/%s.json'):format(Config.Language)))
 
     if not locales then

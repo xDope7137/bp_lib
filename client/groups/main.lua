@@ -2,7 +2,7 @@
 ---Event that creates a blip
 ---@param name string
 ---@param data table
-RegisterNetEvent("peuren_lib:Groups:CreateBlip", function(name, data)
+RegisterNetEvent("bp_lib:Groups:CreateBlip", function(name, data)
     if not data or name then return end
 
     if Groups.DoesBlipExist(name) then
@@ -48,6 +48,6 @@ end)
 
 ---Event that removes blip
 ---@param name string
-RegisterNetEvent('peuren_lib:Groups:RemoveBlip', function(name)
+RegisterNetEvent('bp_lib:Groups:RemoveBlip', function(name)
     Groups.RemoveBlip(name)
 end)

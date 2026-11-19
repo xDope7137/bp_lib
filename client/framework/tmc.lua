@@ -2,7 +2,7 @@ TMC = exports[Config.FrameworkResource]:getCoreObject()
 
 -- Debug utility function
 local function Debug(message)
-    -- print('^3[DEBUG:PeurenLib:TMC] ^7' .. tostring(message))
+    -- print('^3[DEBUG:bp_lib:TMC] ^7' .. tostring(message))
 end
 
 Debug('Initializing TMC framework wrapper')
@@ -92,9 +92,8 @@ Debug('Player loaded state: ' .. tostring(Framework.PlayerLoaded))
 
 AddEventHandler('TMC:Client:OnPlayerLoaded', function()
     Debug('Player loaded event received')
-    TriggerEvent('peuren_lib:PlayerLoaded')
-    TriggerEvent('bp_lib:PlayerLoaded')
     Framework.PlayerLoaded = true
+    TriggerEvent('bp_lib:PlayerLoaded')
     Debug('Framework.PlayerLoaded set to true')
 end)
 
@@ -106,7 +105,7 @@ end)
 
 RegisterNetEvent('TMC:Client:OnJobUpdate', function(newJob)
     Debug('Player job updated event received')
-    TriggerEvent('peuren_lib:PlayerJobUpdated', newJob)
+    TriggerEvent('bp_lib:PlayerJobUpdated', newJob)
 end)
 
 Debug('TMC framework wrapper initialized')

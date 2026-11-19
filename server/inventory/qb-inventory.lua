@@ -12,6 +12,8 @@ Inventory = {
             for k, v in pairs(items) do
                 if Utils.CompareTables(v.info, metadata) then slot = v.slot end
             end
+            -- nothing matches: take nothing (qb-inventory would take the first slot of that name)
+            if not slot then return false end
         end
         TriggerClientEvent('inventory:client:ItemBox', source, QBCore.Shared.Items[item], 'remove', amount)
         return Player.Functions.RemoveItem(item, amount, slot)
@@ -148,7 +150,7 @@ Inventory = {
     end
 }
 
-Core.Framework.RegisterCallback("peuren_lib:GetPlayerInventory", function(player, cb)
+Core.Framework.RegisterCallback("bp_lib:GetPlayerInventory", function(player, cb)
     cb(Inventory.GetItems(player))
 end)
 

@@ -1,7 +1,7 @@
 if not Config.SkillMenu.Enabled then return end
 
 function OpenSkillMenu()
-    local skillData = Core.Framework.Callbacks.Trigger("peuren_lib:GetSkillData")
+    local skillData = Core.Framework.Callbacks.Trigger("bp_lib:GetSkillData")
 
     if not skillData then return end
 

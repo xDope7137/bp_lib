@@ -37,10 +37,12 @@ The `Core` table is assembled in `client/main.lua` and `server/main.lua` by load
 - [Core.Logs (server)](#corelogs-server)
 - [Core.EntitySync (client)](#coreentitysync-client)
 - [Core.EntitySync (server)](#coreentitysync-server)
+- [Core.Vehicles (server)](#corevehicles-server)
 - [Core.Groups (server)](#coregroups-server)
 - [Core.Groups (client)](#coregroups-client)
 - [Core.Math (client)](#coremath-client)
 - [Core.Utils (shared)](#coreutils-shared)
+- [Shared helpers (0.10.0+)](#shared-helpers-0100)
 - [Locale helpers (shared)](#locale-helpers-shared)
 - [CarryItems exports (client)](#carryitems-exports-client)
 - [Skill menu export (client)](#skill-menu-export-client)
@@ -65,6 +67,18 @@ local Core = exports['bp_lib']:Core()
 ```
 
 `Used by:` `bp_apartments`, `bp_cookies`, `bp_redzones`, `bp_spikes`, `bp_truckheist`, `bp_mystery`.
+
+**Testing whether a helper exists.** `Core` reaches another resource through exports, so its
+functions arrive as callable tables: `type(Core.Inventory.GiveWithMeta) == 'function'` is false
+even when the helper is there. Never test the type of a member. Test one of:
+
+- the version: `GetResourceMetadata('bp_lib', 'version', 0)` compared with the version the helper
+  came in (each helper below says it, for example `(0.11.0)`);
+- the member itself, by value: `if Core.Inventory and Core.Inventory.ItemKnown then ... end`;
+- a capability answer where bp_lib gives one: `Core.ItemMetaSupport()` (the inventory name, or
+  false plus why).
+
+To call a member that may be missing, use `pcall(Core.X, ...)`; never `type(Core.X) == 'function'`.
 
 ---
 
@@ -158,14 +172,232 @@ Returns the framework's array of online player ids.
 ### `Core.Framework.HasGroup(player, group)`
 - **Returns:** `boolean` — wraps the framework permission/ace check.
 
-### `Core.Framework.Money.Give(player, amount, account)`
+### `Core.Framework.Money.Give(player, amount, account, reason?)`
 - **account:** `"cash"`, `"bank"`, or `"black_money"` (the latter is wired to the inventory item on qbx).
+- **reason** (0.11.0, optional): why the money moved, for example `"Paycheck"`. Qbox and QBCore write
+  it in their money log and pass it to their money events; ESX (1.16.3) has no money log and only
+  passes it to its events. Left out, they say `unknown`.
 
 ### `Core.Framework.Money.Get(player, account)`
 Returns the current balance for that account, or `0` for missing items / `nil` for missing players.
 
-### `Core.Framework.Money.Remove(player, amount, account)`
-Same account values as `Give`. Returns whatever the underlying framework returns.
+### `Core.Framework.Money.Remove(player, amount, account, reason?)`
+Same account values and `reason` as `Give`. Returns whatever the underlying framework returns.
+On Qbox this does not check the balance first, and Qbox lets bank money go below zero. When the
+money must really be there, use `TryRemove`.
+
+### `Core.Framework.Money.TryRemove(player, amount, account, reason?)` (0.11.0)
+Takes the money only when all of it is there. Returns `true` only when the money really left the
+account: the framework reported this exact remove, or the balance read after is exactly `amount`
+lower than the one read before. A `false` means your money was not taken (one exception below).
+Otherwise `false` and why:
+
+| Why | Meaning |
+|---|---|
+| `bad_amount` | `amount` fails `Core.Amount` (not a whole number of at least 1) |
+| `no_player` | the player is not online (a citizen id of someone offline also gives this) |
+| `bad_account` | the framework does not know that account |
+| `insufficient` | the balance is lower than `amount`; nothing was taken |
+| `busy` | a `TryRemove` for the same player and account is still running; nothing was taken, try again |
+| `refused` | the framework or another script's hook said no, or the framework reported no remove; nothing was taken |
+| `error` | the framework call failed before it took anything |
+| `mismatch` | only on a framework without money events: the balance changed by some other amount; printed in the console. Most likely nothing was taken, but check the player's money |
+
+What holds, and what cannot:
+
+- Two `TryRemove` calls for the same player and account never overlap: the second answers `busy`.
+  On Qbox, a money hook of another resource that waits makes the call wait too; the busy rule is
+  what keeps two takes from both reading the old balance.
+- When the balance read after the take is below zero (another script removed money while a hook
+  waited), the money is put back and the answer is `insufficient`. If it cannot be put back, the
+  answer is `true` (the money did leave) and the console says the player is below zero.
+- A remove that throws after it subtracted (a logger inside the framework failing) still answers
+  `true`: the balance is read again.
+- Nothing here can stop another script's plain `RemoveMoney` on the same player from running at the
+  same moment; on Qbox that can still take bank money below zero, as it could before.
+
+```lua
+local ok, why = Core.Framework.Money.TryRemove(src, 500, 'bank', 'Car repair')
+if not ok then return Core.NotifyKey(src, why == 'insufficient' and 'not_enough_money' or 'try_again', 'error') end
+```
+
+### `Core.Framework.Money.TryGive(player, amount, account, reason?)` (0.11.0)
+Gives `amount` and tells you whether it arrived. `true` when the framework reported this exact add
+(the call's own money event) or `Give` answered `true`. It never decides from the balance: another
+script that takes money inside the money event (a loan repayment, a tax on every credit) makes the
+balance rise by less than `amount` although the money arrived. Otherwise `false` and why:
+
+| Why | Meaning |
+|---|---|
+| `bad_amount` | `amount` fails `Core.Amount` |
+| `no_player` | the player is not online |
+| `bad_account` | the framework does not know that account |
+| `refused` | the framework or a hook said no; the balance did not move |
+| `error` | the framework call failed before anything moved |
+| `unknown` | the balance moved but nothing says this add happened; printed in the console. Never pay it again and never refund the sender: leave it for a person |
+
+On a framework without money events, a rise of exactly `amount` counts as given.
+
+```lua
+local ok, why = Core.Framework.Money.TryGive(src, 500, 'bank', 'Transfer received')
+if not ok and why == 'unknown' then -- keep the record for staff, move nothing else
+end
+```
+
+### `Core.Framework.OnMoneyChange(cb)` (0.11.0)
+Calls `cb(change)` after every money change the framework reports, from any script. Returns an id
+for `OffMoneyChange`, or `false, 'unsupported'` on a framework without money events. Listeners are
+dropped when the script that added them stops. `change` has the same shape on every framework:
+
+| Field | Value |
+|---|---|
+| `source` | the player's server id |
+| `citizenid` | the character id (`Core.Identifier`) |
+| `account` | `'cash'`, `'bank'`, or another account name. ESX's `money` account is reported as `'cash'` |
+| `action` | `'add'`, `'remove'` or `'set'` |
+| `amount` | how much was added or removed. `nil` for `'set'` |
+| `delta` | the signed change: `+amount` for add, `-amount` for remove. `nil` for `'set'` |
+| `balance` | the balance right after the change, read from the framework when the event fired. For `'set'` it is the new total the framework reported |
+| `reason` | the reason given to the framework, or `nil` when none was given (the frameworks' own `unknown`) |
+| `by` | the script that made the change through bp_lib's `Money.Give`, `Remove` or `TryRemove`; `nil` when another script changed the money directly. One bp_lib call names one event: the one with the same player, account, direction and amount. A change some other code makes while the call runs (a hook, a handler of the money event) is not named. Two identical changes at the same moment may swap names; the count stays right |
+| `framework` | `'qbx'`, `'qb'` or `'esx'` |
+| `sync` | `true` on the ESX with ox_inventory `set` described below, else `nil` |
+| `inferred` | `nil`, or how a missing reason was worked out: `'job_payment'` on Qbox (below) |
+
+What each framework reports:
+
+- **Qbox paychecks have no reason.** qbx_core's default `sendPaycheck` (`config/server.lua`) calls
+  `AddMoney('bank', payment)` without one. A bank credit with no reason, not made through bp_lib,
+  whose amount is exactly the character's job payment (the grade's payment, else `job.payment`, as
+  qbx_core's own `pay()` reads it) is reported with `reason = 'paycheck'` and `inferred = 'job_payment'`.
+  Another credit of the same amount with no reason would be named a paycheck too; the `inferred`
+  field lets a script ignore the guess. Owners who want a real reason add `'Paycheck'` as the third
+  argument in `sendPaycheck`. QBCore and ESX pass a reason themselves.
+- **Qbox and QBCore** fire `QBCore:Server:OnMoneyChange` for players who are online. A change made to
+  an offline character (an `AddMoney` by citizen id) fires nothing, so `cb` never hears of it. For a
+  `set` they report only the new total, so the size of the change is not known.
+- **ESX** fires `esx:addAccountMoney`, `esx:removeAccountMoney` and `esx:setAccountMoney` (checked on
+  es_extended 1.16.3; older ESX builds may not fire them). ESX has no offline characters to change.
+- **ESX with ox_inventory** keeps cash as the `money` item. A cash change through
+  `addAccountMoney`/`removeAccountMoney` (bp_lib's `Give`/`Remove` too) arrives twice: first a `set`
+  with the new total, reason "Sync account with item", marked `sync = true`, then the `add` or
+  `remove`. A script that changes the `money` item directly produces only the `sync` set. To count a
+  cash change once: on a `sync` set, take the change as the new total minus the last total you knew
+  and remember the new total; then skip an `add` or `remove` whose `balance` equals the total you
+  already have. Bank money is not an item and arrives once.
+
+The callback runs inside the framework's money call: keep it short and never wait in it (queue the
+work and write it from your own thread). Use `by` to skip your own changes.
+
+```lua
+Core.Framework.OnMoneyChange(function(change)
+    if change.by == GetCurrentResourceName() or change.account ~= 'bank' then return end
+    queue[#queue + 1] = change   -- written to the database every few seconds
+end)
+```
+
+### `Core.Framework.OffMoneyChange(id)` (0.11.0)
+Stops a listener. `true` when there was one.
+
+### `Core.Framework.OnCharacter(cb)` (0.11.0)
+Calls `cb(ev)` when a character finished loading and when it left. Returns an id for `OffCharacter`,
+or `false, 'unsupported'` on a framework module without character events (ox, tmc), or
+`false, 'bad_callback'`. Listeners are dropped when the script that added them stops; a listener
+that throws is reported in the console and never stops the others. `ev` has the same shape on
+every framework:
+
+| Field | Value |
+|---|---|
+| `event` | `'loaded'` or `'left'` |
+| `source` | the player's server id |
+| `citizenid` | the character id (`Core.Identifier`); on `'left'` the character that left, even when the framework has already forgotten the player |
+| `reason` | on `'left'`: `'logout'` (logout or back to the character menu), `'drop'` (disconnect), `'switch'` (a new character loaded on the same player id with no left before it). `nil` on `'loaded'` |
+| `framework` | `'qbx'`, `'qb'` or `'esx'` |
+
+Every `'loaded'` is followed by exactly one `'left'` for that character; the same character announced
+twice is one `'loaded'`.
+
+What each framework fires (read from their source: qbx_core 1.22.4, qb-core main, es_extended main):
+
+- **Qbox**: `QBCore:Server:PlayerLoaded(player)` at the end of `CreatePlayer` (login, and a character
+  switch from the menu); `QBCore:Server:OnPlayerUnload(source)` in `Logout`, while the player still
+  exists. A **disconnect fires no event**: qbx_core's `playerDropped` saves and forgets the player.
+  bp_lib answers the disconnect from its own `playerDropped` handler with the character it kept, so
+  the framework can no longer give its money at that moment.
+- **QBCore**: the same `QBCore:Server:PlayerLoaded(player)`; `QBCore:Server:OnPlayerUnload(source)` in
+  `Logout`; on a disconnect `QBCore:Server:PlayerDropped(source)` then `OnPlayerUnload(source)`, after
+  its save and before it forgets the player (one `'left'`, reason `'drop'`).
+- **ESX**: `esx:playerLoaded(playerId, xPlayer, isNew)`; `esx:playerDropped(playerId, reason)` on a
+  disconnect and on a logout (`esx:playerLogout`, reason `esx_player_logout` = `'logout'`), before
+  its final save, while the xPlayer still exists.
+
+**A restart sends nothing.** When your script (re)starts with players already in, no `'loaded'`
+comes for them. Catch up once after registering:
+
+```lua
+local function load(src, cid) --[[ read what you keep for an online character ]] end
+Core.Framework.OnCharacter(function(ev)
+    if ev.event == 'loaded' then CreateThread(function() load(ev.source, ev.citizenid) end)
+    else forget(ev.source, ev.citizenid) end
+end)
+for _, c in ipairs(Core.Framework.OnlineCharacters() or {}) do load(c.source, c.citizenid) end
+```
+
+A restart of bp_lib itself keeps track: it reads the characters already in when it starts, so their
+`'left'` still arrives. (Restarting bp_lib also stops every script that depends on it.)
+
+The callback runs inside the framework's event: never wait in it, start a thread for database work.
+
+### `Core.Framework.OffCharacter(id)` (0.11.0)
+Stops a listener. `true` when there was one.
+
+### `Core.Framework.OnlineCharacters()` (0.11.0)
+Every character in right now, `{ { source, citizenid }, ... }` sorted by player id. Players still in
+the character menu are left out. `false, 'unsupported'` where `OnCharacter` is unsupported.
+
+### `Core.Framework.Condition(src)` (0.11.0)
+Server side: is this player dead, in last stand, or restrained right now?
+
+```lua
+local c = Core.Framework.Condition(src)
+-- { dead = false, lastStand = false, cuffed = true, from = { cuffed = 'state:cuffed' } }
+if not c or c.dead or c.lastStand or c.cuffed then return end
+```
+
+`nil, 'no_player'` for an id with no ped. `from` names where each true answer was read. Read in this order:
+
+| Source | Qbox | QBCore | ESX |
+|---|---|---|---|
+| Framework fields | metadata `isdead`, `inlaststand`, `ishandcuffed` (qbx_core defaults; medical and police scripts set them with `SetMetaData`) | the same metadata (qb-ambulancejob, qb-policejob) | none: esx_ambulancejob writes `users.is_dead`, esx_policejob keeps cuffs on the client |
+| Player state bag (`Player(src).state`) and ped state bag (`Entity(ped).state`) | dead `isDead`, `dead`; last stand `inLastStand`, `isInLastStand`, `laststand`, `inlaststand`; cuffed `cuffed`, `isCuffed`, `handcuffed`, `isHandcuffed` | the same | the same |
+| Ped health | below 100 is dead (GTA counts 100 as zero health) | the same | the same |
+
+What it cannot know: a state a script keeps only on the client (esx_policejob and qb-policejob keep
+"cuffed" in a client variable unless the framework metadata is set), or a state bag under another
+key. Add such keys to `CONDITION_KEYS` in `server/extras.lua`. A player in last stand who was
+revived by a script that sets none of these reads as fine.
+
+### `Core.Framework.SavePlayer(src)` (0.11.0)
+Asks the framework to write the player's row to the database now, for example right after money
+moved between two players. Qbox: `exports.qbx_core:Save`. QBCore: `Player.Functions.Save()`. ESX: the
+`SavePlayer` export of es_extended. The framework finishes the write a moment later in its own
+thread. Returns `true` when asked, `false` when the player is not loaded or the framework cannot.
+
+### `Core.Framework.SaveMoney(src)` (0.11.0)
+Writes the player's money to the framework's own row now and waits for the write. It uses the same
+column and encoding as the framework's own save: `players.money` by citizenid on Qbox and QBCore,
+`users.accounts` by identifier on ESX. Use it when your script's own write must not land on disk
+before the player's money does. It does not replace `SavePlayer`: call that too for the rest of the
+row.
+
+The first call checks that the table and both columns exist, and that a stored value has the shape
+it would write. If that check fails, or the connector is not oxmysql, it only asks the framework to
+save, as `SavePlayer` does. Returns `true, 'direct'` (on disk), `true, 'asked'` (the framework was
+asked, not waited for), or `false` (the player is not loaded).
+
+### `Core.Framework.MoneySaveMode()` (0.11.0)
+Returns which way `SaveMoney` works on this server: `'direct'`, or `'asked'` plus the reason.
+Print it in your doctor or start-up line.
 
 ### `Core.Framework.Job.Set(player, job, grade)`
 Sets the player's job/grade.
@@ -181,6 +413,36 @@ Returns the current grade *level* (number).
 
 ### `Core.Framework.Job.GetGradeLabel(player)`
 Returns the current grade *name* (string).
+
+### `Core.Framework.JobOf(src)` (0.12.0)
+The player's active job from the framework's memory (no query): `{ name, label, grade, gradeLabel,
+boss, bankAuth, onDuty }` or `nil`. `grade` is the grade number; `boss` is the framework's boss grade
+(QBCore and Qbox `isboss`, ESX the grade named `boss`); `bankAuth` is QBCore and Qbox `bankAuth` (a boss
+always has it); `onDuty` is nil where the framework keeps no duty (base ESX). Only the active job: Qbox's
+other job slots give nothing until made active. Read it on every call where access depends on it.
+
+### `Core.Framework.GangOf(src)` (0.12.0)
+The same shape for the player's gang (QBCore and Qbox; always `nil` on ESX). `Core.Framework.HasGangs()`
+says whether the framework has gangs.
+
+### `Core.Framework.OnJob(cb)` / `OffJob(id)` (0.12.0)
+`cb({ source, citizenid, kind = 'job' | 'gang', name, grade })` after a job or gang change (QBCore and
+Qbox `OnJobUpdate` / `OnGangUpdate`, Qbox `qbx_core:server:onGroupUpdate`, ESX `esx:setJob`). Use it
+for lists and page pushes only, never for access: read `JobOf` again. Returns an id, or false plus
+`'unsupported'` / `'bad_callback'`.
+
+### `Core.Framework.JobList(kind)` (0.12.0)
+Every job (`'job'`) or gang (`'gang'`) the framework knows: `{ [name] = { label, grades = { [level] =
+{ label, boss, bankAuth } } } }`, or `nil`. Memory only.
+
+### `Core.Framework.PaycheckSociety()` (0.12.0)
+`true` when paychecks come out of the job's society account (QBCore `Config.Money.PayCheckSociety`,
+Qbox `money.paycheckSociety`), `false` when not, `nil` when unknown (ESX).
+
+### `Core.Framework.CharactersWithJob(cids, name, kind?)` (0.12.0)
+Which of these characters (at most 10 citizen ids) hold the job (or gang) `name` in any slot, online or
+not: a list of citizen ids, one query (Qbox `player_groups`, QBCore the `players` JSON, ESX `users.job`).
+False plus `'unsupported'` / `'invalid'` / `'failed'`. For paced staff checks, not for every request.
 
 ---
 
@@ -256,6 +518,42 @@ Removes by quantity, optionally matched against metadata.
 
 ### `Core.Inventory.HasPlayerItem(source, item, count)`
 Convenience around `GetItem`. With `count` omitted, returns `true` if any quantity exists.
+
+### `Core.Inventory.ItemKnown(item)` (0.11.0)
+Whether the inventory defines `item`, read only: `true` or `false`, or `nil` plus `'bad_item'`,
+`'unsupported_inventory'` (no adapter for this inventory: nothing can be known) or `'failed'`.
+Asks ox_inventory `Items(item)`, qs-inventory `GetItemList()`, qb-inventory `QBCore.Shared.Items`.
+
+```lua
+if Core.Inventory.ItemKnown('bank_card') == false then print('add bank_card to your inventory items') end
+```
+
+### `Core.Inventory.GiveWithMeta(source, item, metadata, reason?)` (0.11.0)
+Gives one `item` that carries `metadata` (for example a card: `{ card = 12, last4 = '4821' }`).
+Works on ox_inventory, qb-inventory and qs-inventory. Returns `true`, or `false` and why:
+`cannot_carry`, `not_unique` (qb-inventory: the item must be `unique = true` in your items list,
+otherwise qb-inventory stacks it with an item of the same name and drops its metadata),
+`unknown_item`, `bad_metadata`, `no_player`, `unsupported_inventory`, `failed`.
+
+### `Core.Inventory.FindWithMeta(source, item, match?)` (0.11.0)
+Every slot of `item` whose metadata has each key and value of `match` (every slot of that item
+when `match` is empty): `{ { slot, count, metadata }, ... }`, by slot. `nil` and why when it cannot
+look.
+
+### `Core.Inventory.RemoveWithMeta(source, item, match, count?)` (0.11.0)
+Removes `count` (1) from the first slot whose metadata matches. `match` may not be empty, so
+another item of the same name is never taken by mistake. Returns `true`, or `false` and why:
+`not_found`, `not_enough`, `bad_match`, `bad_count`, `unsupported_inventory`, `failed`.
+
+```lua
+local ok, why = Core.Inventory.GiveWithMeta(src, 'bank_card', { card = card.id, last4 = card.last4 })
+local held = Core.Inventory.FindWithMeta(src, 'bank_card', { card = card.id })
+Core.Inventory.RemoveWithMeta(src, 'bank_card', { card = card.id })
+```
+
+### `Core.ItemMetaSupport()` (0.11.0, server)
+The inventory's name when the three functions above work on this server. Otherwise `false` and
+`'no_inventory'` (no inventory found, `Core.Inventory` is `nil`) or `'unsupported_inventory'`.
 
 ### `Core.Inventory.RegisterUsableItem(item, callback)`
 Registers a usable item across frameworks (`QBCore.Functions.CreateUseableItem`, `ESX.RegisterUsableItem`, or the qbx export).
@@ -335,6 +633,23 @@ Adds global vehicle interactions.
 
 ### `Core.Target.AddGlobalVehicle(options)`
 Lower-level passthrough for ox_target's `addGlobalVehicle`.
+
+### `Core.Target.RemoveModel(models, names)` (0.11.0)
+Takes the caller's own options off these models (a model name, a hash, or a list). `names`: one
+option name, a list of names, or `nil` for every option the caller added to them. Returns how many
+came off, and a list of labels left on (below). An option added without a `name` is named after its
+label. bp_lib registers every model option with the target resource under its own name, so it keeps
+track of which script added which option.
+
+- **ox_target:** bp_lib sends each name as `<resource>:<name>`, so two scripts can use the same
+  option name on the same model without one replacing or removing the other. These options also
+  come off by themselves when the script that added them stops. A `canInteract(entity, distance,
+  coords, name)` sees the prefixed name.
+- **qb-target and qtarget:** they key a model's options by label and remove by label. The same
+  label on the same model from two scripts already replaces the first when the second is added
+  (the target resource does that). There is no automatic removal, and `RemoveModel` leaves a label
+  another script still has on that model (it is in the second return value). Call `RemoveModel`
+  from your own `onResourceStop`.
 
 ### `Core.Target.RemoveZone(id)`
 Removes a zone created via `AddBoxZone`.
@@ -487,6 +802,9 @@ Source: `client/fuel/<system>.lua`.
 
 ### `Core.Fuel.SetFuel(vehicle, plate, level)`
 Sets the fuel level. `plate` is required for some backends (e.g. `ox_fuel`'s state-bag based flow).
+With `ox_fuel` and `tmc` it sets the game's fuel level and the replicated `fuel` state bag, as
+ox_fuel does itself (0 to 100). The bag replicates only from the client that owns the vehicle, so
+call it after you spawned the vehicle or took network control of it. Test: `tests/fuel.py`.
 
 ---
 
@@ -621,6 +939,46 @@ Core.Database.Insert('INSERT INTO logs (msg) VALUES (?)', { 'hi' }, function(id)
 end)
 ```
 
+### `Core.Database.Transaction(queries)` (0.11.0)
+Runs every query in one database transaction: all of them happen, or none. Waits for the answer,
+so call it from a thread. Each query is `{ query = 'SQL', params = { ... }, expect = n }` (or
+`{ 'SQL', { ... } }`). With `expect`, the query must touch exactly `n` rows (rows it matched for
+an `UPDATE`), or the whole transaction is rolled back. That makes a guarded balance change safe:
+
+```lua
+local ok = Core.Database.Transaction({
+    { query = 'UPDATE accounts SET balance = balance - ? WHERE id = ? AND balance >= ?', params = { 50, from, 50 }, expect = 1 },
+    { query = 'UPDATE accounts SET balance = balance + ? WHERE id = ?', params = { 50, to }, expect = 1 },
+    { query = 'INSERT INTO history (account, amount) VALUES (?, ?), (?, ?)', params = { from, -50, to, 50 } },
+})
+```
+
+Returns `true` when committed, else `false` and `'failed'` (rolled back; oxmysql prints the reason
+in the console), `'invalid'` or `'unsupported'`. Needs oxmysql. A transaction with `expect` holds at
+most 99 statements, counting one extra check statement per `expect`. Parameters follow the usual
+oxmysql rules (no `nil` in the middle of a parameter list).
+
+### `Core.Database.BatchInsert(table, columns, rows, options?)` (0.11.0)
+Writes many rows with one `INSERT` statement and returns the number of affected rows, or `false`
+and `'invalid'` / `'too_many'` / `'failed'`. Waits for the answer.
+
+- `rows`: a list of rows, each a list in column order or a table keyed by column name. A missing
+  value is written as `NULL`.
+- `options.ignore = true`: `INSERT IGNORE`.
+- `options.update = { column = 'add' | 'set' | 'max' }`: adds `ON DUPLICATE KEY UPDATE`; `add` adds
+  the new value to the stored one, `set` replaces it, `max` keeps the larger. On MySQL 8.0.19 and
+  later the statement uses the row alias (`AS new ... new.column`), elsewhere `VALUES(column)`
+  (MariaDB has no row alias; MySQL warns that `VALUES()` is deprecated). The server version is read
+  once, on the first upsert.
+- Table and column names may only hold letters, digits and `_`. Values must be numbers, strings or
+  booleans. At most 65,535 values per call.
+
+```lua
+Core.Database.BatchInsert('daily_totals', { 'account_id', 'day', 'money_in', 'n' },
+    { { 7, 20410, 500, 1 }, { 9, 20410, 75, 3 } },
+    { update = { money_in = 'add', n = 'add' } })
+```
+
 ---
 
 ## Core.Logs (server)
@@ -647,7 +1005,7 @@ Core.Logs.Send('inventory', 'Item Removed', 'phone x1', src, nil, false)
 
 Source: `client/entitySync/class.lua`. Exposed as `Core.EntitySync`.
 
-These functions are sugar over server callbacks (`peuren_lib:CreateEntity`, `:CreatePed`, `:CreateVehicle`).
+These functions are sugar over server callbacks (`bp_lib:CreateEntity`, `:CreatePed`, `:CreateVehicle`).
 
 ### `Core.EntitySync.CreateEntity(model, pos, args)`
 - **pos:** `vector4` (`pos.w` = heading).
@@ -676,9 +1034,57 @@ Source: `server/entitySync/class.lua` (functions) and `server/entitySync/main.lu
 
 The module also registers these callbacks for the client wrappers above:
 
-- `peuren_lib:CreateEntity`
-- `peuren_lib:CreatePed`
-- `peuren_lib:CreateVehicle`
+- `bp_lib:CreateEntity`
+- `bp_lib:CreatePed`
+- `bp_lib:CreateVehicle`
+
+---
+
+## Core.Vehicles (server)
+
+Source: `server/vehicleIndex/main.lua`. An index of every vehicle on the server, kept up to date by `entityCreated` / `entityRemoved`. Use it instead of looping over `GetAllVehicles()` and reading every car. Test: `tests/vehicle_index.py`. Measure on a live server: `bp_vehicles` (what it costs now) and `bp_vehicles bench` (against a loop).
+
+What it costs to keep running:
+- Nothing until a script asks its first question: the index is built then, and thrown away again after 15 minutes without a question.
+- A background sweeper re-reads a slice of the list every 250 ms (a full pass takes about 8 s). A slice is never more than 150 cars, so the cost has a ceiling; past 4800 cars the pass gets longer instead. It sleeps after two minutes without a question.
+- 0.3 to 0.8 KB of memory per vehicle (0.74 KB measured on the dev server; `bp_vehicles` shows the live figure).
+- FXServer does not announce a car made with `CreateVehicleServerSetter`, so the index calls `GetAllVehicles()` to catch those: once per sweeper pass and at most once a second on a miss or a spot check (always for `maxAge = 0` and `Unread`). Nothing is read per car there. If your script spawns on the server, call `Core.Vehicles.Add(entity)` so the car is known at once; without it, a spot check can miss it for up to a second.
+
+What it saves: a plate that is out is one lookup. A plate that is missing is cheap when you pass the car's model (only the cars of that model are re-read, even with `maxAge = 0`). Without a model, a miss re-reads the cars with no plate yet and the cars younger than 30 s, and `maxAge = 0` re-reads every plate.
+
+Measured on the dev server with 316 vehicles (250 plated cars from `player_vehicles` spawned around a player, plus traffic), against a `GetAllVehicles()` loop: car is out 99% less time, car is gone with the model 98% less (82% less with `maxAge = 0`), car is gone without a model 78% less (20% less with `maxAge = 0`), spot check 70% less.
+
+Plates compare trimmed and in upper case. Entity handles are valid in every resource.
+
+### `Core.Vehicles.Find(plate, maxAge, model)`
+Array of entities carrying the plate (empty when none). A hit is re-read before it is returned. A miss re-reads cars with no plate yet, cars younger than 30 s, and cars not read for `maxAge` ms (default `10000`); `0` re-reads on every miss, for answers money depends on. `model` (spawn name or hash, optional) is the model of the car you are looking for: a miss then re-reads only the cars of that model. Pass it whenever you know it. If the model you pass is not the model the car has in the world, a plate changed in the last few seconds can be missed until the sweeper reads it.
+
+### `Core.Vehicles.Unread(model)`
+`true` when a vehicle of this model has a plate that still reads empty. Reads only the cars of that model.
+
+### `Core.Vehicles.UnreadModels()`
+Array of model hashes of vehicles whose plate still reads empty (no client has owned them yet). Any of them could be the car a plate search missed.
+
+### `Core.Vehicles.FirstFree(points, radius)`
+Index of the first point (anything with `x`, `y`, `z`) with no vehicle within `radius`, or `nil` when all are taken. Reads only the cars around each point, the cars that were moving and the cars players sit in.
+
+### `Core.Vehicles.Near(point, radius)`
+`true` when a vehicle stands within `radius` of the point.
+
+### `Core.Vehicles.Add(entity)`
+Registers a vehicle you just made on the server, so it is known before the next catch-up.
+
+### `Core.Vehicles.All()`
+Array of every vehicle entity. For a one-time pass at script start, not for lookups.
+
+### `Core.Vehicles.Stats()` / `Core.Vehicles.Resync()`
+`Stats()` returns counts plus the running cost (`loaded`, `memoryKB`, `sweeperUsPerSecond`, `lookups`, `lookupUs`) without loading the index. `Resync()` rebuilds it from the game. Console: `bp_vehicles` (counts and cost), `bp_vehicles resync`, `bp_vehicles find <plate>`, `bp_vehicles bench` (times it against a loop; reads only), `bp_vehicles check` (compares the index with a full scan of the game).
+
+```lua
+local Core = exports.bp_lib:Core()
+local car = Core.Vehicles.Find('ABC 123')[1]
+local i = Core.Vehicles.FirstFree(spawnPoints, 2.5)
+```
 
 ---
 
@@ -726,7 +1132,7 @@ Triggers `event` on every member's client with `(args, isOwner)`. Sleeps 100 ms 
 Same as `SendEvent` but iterates every group across every resource.
 
 ### `Core.Groups.IsPlayerInGroup(source)`
-Checks all *other* resources for membership; if found, sends a `peuren_lib:notify` warning and returns `true`.
+Checks all *other* resources for membership; if found, sends a `bp_lib:notify` warning and returns `true`.
 
 ### `Core.Groups.MemberDisconnected(source)`
 Wired to `playerDropped`. Starts the `Config.Groups.Timeout` countdown; after expiry the leader is migrated or the group is destroyed.
@@ -802,12 +1208,82 @@ Returns the first vehicle within `radius` and inside a ~45° forward cone from t
 
 ---
 
+## Shared helpers (0.10.0+)
+
+Helpers BP scripts used to copy into every resource. Source: `shared/helpers.lua`,
+`server/helpers.lua`, `client/helpers.lua`; copied onto `Core` in both `main.lua` files.
+Anything that prints or keeps state uses the calling script's name (`GetInvokingResource()`),
+so scripts never share a tag, cache or rate limit. Tests: `tests/helpers.py` (lupa).
+
+Check for them with `Core.HelpersVersion` (1 in 0.10.0, 2 in 0.11.0) and stop with a clear message on
+older bp_lib:
+
+```lua
+if not lib.HelpersVersion then
+    print('^1[my_script] Needs bp_lib 0.10.0 or newer. Update bp_lib, then start my_script again. Stopping.^0')
+    CreateThread(function() StopResource(GetCurrentResourceName()) end)
+end
+```
+
+A script that uses the 0.11.0 additions checks `(lib.HelpersVersion or 0) >= 2` the same way.
+
+| Function | Side | What it does |
+|---|---|---|
+| `Core.Say(msg, colour?)` | both | Console line `[script] msg`. No colour: cyan tag. With a colour (`'^1'`) the whole line takes it. |
+| `Core.Debug(enabled, ...)` | both | `[script:debug] a b c`, only when `enabled` is truthy. |
+| `Core.Trim(value)` | both | Trimmed string; nil stays nil. |
+| `Core.Clamp(n, lo, hi, default)` | both | `tonumber(n)` held in range; not a number or NaN gives `default`. |
+| `Core.Round(n, decimals?)` | both | Half up; 0 decimals returns an integer. |
+| `Core.Amount(n, min?, max?)` | both | 0.11.0. The strict money rule: `n` as an integer when it is a number, finite, whole, at least `min` (1) and at most `max` (2^53 - 1, the largest whole number every part of the game holds exactly). Anything else gives `nil` and why: `not_number`, `not_finite`, `not_whole`, `too_small`, `too_large`. Never rounds or converts: `"100"`, `1.5`, `0`, `-1`, NaN and infinity are refused. |
+| `Core.Plate.Normalize(plate)` | both | Trimmed upper case plate, nil when empty. Use before comparing or storing. |
+| `Core.Plate.World(plate)` | both | Normalized and cut to the game's 8 characters. |
+| `Core.Plate.Spellings(plate)` | both | Raw, normalized and every 8-char padding, for SQL lookups. |
+| `Core.Plate.Of(entity)` | both | Normalized plate of a vehicle, nil for no entity. |
+| `Core.IsAdmin(src, { ace, groups, console })` | server | ACE first, then any framework group. Console (src 0) only with `console = true`. |
+| `Core.Identifier(src)` | server | Character id as a string, nil when not loaded. Never throws. |
+| `Core.DisplayName(src, max?)` | server | Character name, else FiveM name, else `player <id>`; cut to `max` (64). `'console'` for src 0. |
+| `Core.RateLimit(src, key, ms)` | server | true when allowed (and counted), false when the same key came within `ms`. |
+| `Core.Bucket(src, key, max, windowMs)` | server | true while fewer than `max` calls in the last `windowMs`. |
+| `Core.NotifyKey(src, key, kind?, ...)` | server | Notify with a locale key of the calling script. kind defaults to `'info'`. |
+| `Core.Alert(src, title, body?, kind?, { app?, data? }?)` | server | 0.11.0. The notification bridge, for notes that matter. With BP Laptop running and an app of your script this player can see there, the note goes into the laptop (stored, bell list, unread badge, toast; `data` comes back to your app when the player opens it; `app` picks one of your apps, default your first). Otherwise, or when the laptop refuses (rate limit, app switched off, laptop restarting), the normal `Core.Notify` with `kind`. Never both. Returns `'laptop'` or `'notify'`, `false` for no player. No laptop needed: on a server without it this is just a notify. |
+| `Core.Webhook(url, embed, username?)` | server | Posts one Discord embed. `embed.footer` may be a string. false without a url. |
+| `Core.Lock(keys, fn, ttl?)` | server | 0.11.0. Runs `fn()` while holding every key in `keys` (one key or a list), kept per script. Keys are sorted and taken all at once, whatever order you gave them in; if any is held, `fn` does not run and you get `false, 'busy'`. Otherwise `true` and what `fn` returned. Released when `fn` returns and when it throws (the error is raised again). A lock older than `ttl` ms (30000) counts as free. Not re-entrant. |
+| `Core.IsLocked(keys)` | server | 0.11.0. true when any of the keys is held by your script. |
+| `Core.IsNear(src, coords, radius)` | server | 0.11.0. true when the player's ped is within `radius` metres of `coords` (vector3, vector4 or `{ x, y, z }`), measured from the server's copy of the ped's position. That stops a page, an event or a callback that only claims a place; it does not stop a teleport or a position cheat, because under OneSync the server's copy comes from that client's own sync data. Also returns the distance. false for no player or no ped. |
+| `Core.Role(src, staff)` | server | 0.11.0. The highest staff role a player holds, from ACE rights and framework groups (each role is checked like `Core.IsAdmin`). See below. |
+| `Core.NotifyKey(key, kind?, ...)` | client | Same as the server one, for the local player. |
+| `Core.UILocale(prefixes?)` | client | Every key in the script's `locales/en.json`, translated, for its NUI. Optional prefix filter like `{ 'ui_', 'err_' }`. Cached. |
+| `Core.RequestModel(model, timeout?)` | client | Hash once loaded, nil when missing or timed out (5000 ms). Needs a thread. |
+| `Core.RequestAnimDict(dict, timeout?)` | client | true once loaded, false when missing or timed out (5000 ms). Needs a thread. |
+
+`Core.Role` takes one table:
+
+```lua
+local Staff = {
+    owner = { ace = 'my_script.owner' },                              -- optional, always the top
+    roles = {
+        admin = { ace = 'my_script.admin', groups = { 'admin', 'god' } },
+        mod   = { ace = 'my_script.mod',   groups = { 'mod' } },
+        trial = { ace = 'my_script.trial', groups = { 'support' } },
+    },
+    order = { 'admin', 'mod', 'trial' },                             -- highest first
+    console = true,                                                  -- the server console counts as owner
+}
+local role, place = Core.Role(src, Staff)   -- 'mod', 2  (owner is place 0), or nil
+```
+
+Without `order`, roles are ranked by a `rank` number on each role (higher first), then by name.
+On Qbox and QBCore a group is an ACE group (`add_principal identifier.fivem:1 group.admin`); on ESX
+it is the player's ESX group.
+
+---
+
 ## Locale helpers (shared)
 
 Source: `utils/locale.lua`. Loaded into `Core` as `Core.LoadLocales`, `Core.GetLocales`, and `Core.Locale`.
 
 ### `Core.Locale(key, ...)`
-Looks up `key` in the invoking resource's locale dictionary, falling back to `peuren_lib`'s. Optional varargs are forwarded to `string.format`.
+Looks up `key` in the invoking resource's locale dictionary, falling back to `bp_lib`'s. Optional varargs are forwarded to `string.format`.
 
 ```lua
 Core.Notify(Core.Locale('item_added', 'phone'), nil, 'success')
@@ -848,7 +1324,7 @@ Source: `client/menu/skillMenu.lua`.
 ### `exports['bp_lib']:OpenSkillMenu()`
 Triggers the `bp_lib:GetSkillData` callback and opens a `Core.Menu` listing every skill.
 
-The command exposed by `Config.SkillMenu.Command` (default `skills`) calls the same function.
+The command exposed by `Config.SkillMenu.Command` (default `bp_skills`) calls the same function.
 
 ---
 
@@ -899,7 +1375,7 @@ local netId = Core.Framework.Callbacks.Trigger('bp_lib:SpawnVehicle', 'adder', G
 local vehicle = NetToVeh(netId)
 ```
 
-### `peuren_lib:CreateEntity` / `:CreatePed` / `:CreateVehicle`
+### `bp_lib:CreateEntity` / `:CreatePed` / `:CreateVehicle`
 Server callbacks backing `Core.EntitySync.Create*`. Not generally invoked directly — call the wrappers instead.
 
 ---
@@ -960,7 +1436,7 @@ Config.Language           = 'en'         -- locale file picked from locales/<lan
 Config.CarryItemsEnabled  = true         -- master switch for the CarryItems subsystem
 Config.SkillMenu = {
     Enabled = true,
-    Command = 'skills',                  -- false to disable the command
+    Command = 'bp_skills',               -- false to disable the command
 }
 Config.Groups = {
     MemberLimit = 4,

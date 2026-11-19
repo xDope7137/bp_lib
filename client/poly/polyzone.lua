@@ -1,10 +1,18 @@
+-- Ids come from a counter and are freed on remove: random ids from 100-999 were never freed,
+-- so after enough zones (garage restarts, Setup saves) every id was taken and Add* recursed forever.
+local zoneSeq = 0
+local function NextZoneId()
+    zoneSeq = zoneSeq + 1
+    return "bp_lib:" .. zoneSeq
+end
+
 Poly = {
     Data = {},
     ResourceZones = {},
 
     AddBoxZone = function(pos, height, width, heading, cb, debugOverride)
         local invokingResource = GetInvokingResource() or GetCurrentResourceName()
-        local id = "peuren_lib:"..math.random(100, 999)
+        local id = NextZoneId()
 
         if Poly.Data[id] then return Poly.AddBoxZone(pos, height, width, heading, cb, debugOverride) end
 
@@ -30,7 +38,7 @@ Poly = {
 
     AddCircularZone = function(pos, radius, cb)
         local invokingResource = GetInvokingResource() or GetCurrentResourceName()
-        local id = "peuren_lib:"..math.random(100, 999)
+        local id = NextZoneId()
 
         if Poly.Data[id] then return Poly.AddCircularZone(pos, radius, cb) end
 
@@ -52,7 +60,7 @@ Poly = {
 
     AddPolyZone = function(points, cb)
         local invokingResource = GetInvokingResource() or GetCurrentResourceName()
-        local id = "peuren_lib:"..math.random(100, 999)
+        local id = NextZoneId()
 
         if Poly.Data[id] then return Poly.AddPolyZone(points, cb) end
 
@@ -76,6 +84,7 @@ Poly = {
         if not id then return end 
         if not Poly.Data[id] then return end 
         Poly.Data[id]:destroy()
+        Poly.Data[id] = nil
 
         if Poly.ResourceZones[invokingResource] then
             Poly.ResourceZones[invokingResource][id] = nil
@@ -84,11 +93,13 @@ Poly = {
 }
 
 RegisterNetEvent("onResourceStop", function(resName)
-    if Poly.ResourceZones[resName] then
-        for k, v in pairs(Poly.ResourceZones[resName]) do
-            Poly.Data[k]:destroy() 
-        end
+    local list = Poly.ResourceZones[resName]
+    if not list then return end
+    for k in pairs(list) do
+        if Poly.Data[k] then Poly.Data[k]:destroy() end
+        Poly.Data[k] = nil
     end
+    Poly.ResourceZones[resName] = nil
 end)
 
 return Poly

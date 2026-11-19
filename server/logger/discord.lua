@@ -47,16 +47,16 @@ Logger = {
         }}
     
         if Logs[type] then
-            PerformHttpRequest(Logs[type], function(err, text, headers) end, 'POST', json.encode({username = 'peuren.dev', embeds = description}), { ['Content-Type'] = 'application/json' })
+            PerformHttpRequest(Logs[type], function(err, text, headers) end, 'POST', json.encode({username = 'BP Development', embeds = description}), { ['Content-Type'] = 'application/json' })
             
             if important then
-                PerformHttpRequest(Logs[type], function(err, text, headers) end, 'POST', json.encode({username = 'peuren.dev', content = '@here'}), { ['Content-Type'] = 'application/json' })
+                PerformHttpRequest(Logs[type], function(err, text, headers) end, 'POST', json.encode({username = 'BP Development', content = '@here'}), { ['Content-Type'] = 'application/json' })
             end
-        elseif not Logs[type] then
-            PerformHttpRequest(Logs['others'], function(err, text, headers) end, 'POST', json.encode({username = 'peuren.dev', embeds = description}), { ['Content-Type'] = 'application/json' })
+        elseif Logs['others'] then
+            PerformHttpRequest(Logs['others'], function(err, text, headers) end, 'POST', json.encode({username = 'BP Development', embeds = description}), { ['Content-Type'] = 'application/json' })
             
             if important then
-                PerformHttpRequest(Logs['others'], function(err, text, headers) end, 'POST', json.encode({username = 'peuren.dev', content = '@here'}), { ['Content-Type'] = 'application/json' })
+                PerformHttpRequest(Logs['others'], function(err, text, headers) end, 'POST', json.encode({username = 'BP Development', content = '@here'}), { ['Content-Type'] = 'application/json' })
             end
         end
     end

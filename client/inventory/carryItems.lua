@@ -27,7 +27,7 @@ CarryItems = {
         if not CarryItems.Items[itemName] then return end
 
         CarryItems.InInventory[itemName] = true
-        TriggerEvent('peuren_lib:AddedItem', itemName)
+        TriggerEvent('bp_lib:AddedItem', itemName)
     end,
 
     ItemRemoved = function(itemName)
@@ -53,7 +53,7 @@ CarryItems = {
         CarryItems.Current.options = nil
 
         ClearPedTasks(PlayerPedId())
-        TriggerEvent('peuren_lib:RemovedItem', itemName)
+        TriggerEvent('bp_lib:RemovedItem', itemName)
     end,
 
     UpdateAnimation = function()
@@ -144,7 +144,7 @@ Citizen.CreateThread(function()
 
     Citizen.Wait(10000)
 
-    local playerInventory = Core.Framework.Callbacks.Trigger("peuren_lib:GetPlayerInventory")
+    local playerInventory = Core.Framework.Callbacks.Trigger("bp_lib:GetPlayerInventory")
     
     for k, v in pairs(playerInventory) do
         if v.item then

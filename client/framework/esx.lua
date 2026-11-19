@@ -60,10 +60,9 @@ Framework = {
 }
 
 AddEventHandler('esx:onPlayerSpawn', function()
-    TriggerEvent('peuren_lib:PlayerLoaded')
-    TriggerEvent('bp_lib:PlayerLoaded')
-    Framework.PlayerLoaded = true
     ESX.PlayerData = ESX.GetPlayerData()
+    Framework.PlayerLoaded = true
+    TriggerEvent('bp_lib:PlayerLoaded')
 end)
 
 RegisterNetEvent('esx:playerLoaded', function(playerData, isNew, skin)
@@ -71,7 +70,7 @@ RegisterNetEvent('esx:playerLoaded', function(playerData, isNew, skin)
 end)
 
 RegisterNetEvent('esx:setJob', function(newJob)
-    TriggerEvent('peuren_lib:PlayerJobUpdated', newJob)
+    TriggerEvent('bp_lib:PlayerJobUpdated', newJob)
     ESX.PlayerData = ESX.GetPlayerData()
 end)
 

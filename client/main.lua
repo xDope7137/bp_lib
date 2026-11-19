@@ -47,9 +47,16 @@ Core.Locale = locale
 Core.Print = Utils.Print
 Core.Utils = Utils
 
+-- Shared helpers (shared/helpers.lua, client/helpers.lua): lib.Say, lib.Plate.Normalize ...
+-- 1 = 0.10.0 helpers, 2 = 0.11.0 (adds Core.Amount on this side; the rest is server only).
+Core.HelpersVersion = 2
+for _, list in ipairs({ Helpers.Shared, Helpers.Client }) do
+    for _, name in ipairs(list) do Core[name] = Helpers[name] end
+end
+
 ApplyClientCompat(Core)
 
-Core.LoadLocales()
+Core.LoadLocales(resource)
 
 if Core.Notify then
     RegisterNetEvent("bp_lib:notify", function(title, desc, type)

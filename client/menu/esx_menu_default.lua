@@ -14,7 +14,7 @@ Menu = function(title, options)
         }
     end
 
-	ESX.UI.Menu.Open('default', resource, 'peuren_lib', {
+	ESX.UI.Menu.Open('default', resource, 'bp_lib', {
 		title = title,
 		align = 'right',
 		elements = menu

@@ -168,6 +168,14 @@ Config.DispatchResource = nil -- The dispatch system resource folder name (auto-
     op-dispatch
 ]]
 
+Config.Phone = 'auto'
+--SUPPORTED PHONE NAMES TO PUT IN: Config.Phone = ""
+--[[
+    'auto'   - (RECOMMENDED) Scans your server and picks the correct phone automatically
+    lb-phone
+    default  - no phone resource; the number lives in the framework's character data (qb, qbx)
+]]
+
 Config.Fuel = 'auto'
 Config.FuelResource = nil -- The fuel system resource folder name (auto-filled when using 'auto')
 --SUPPORTED FUEL SCRIPT NAMES TO PUT IN: Config.Fuel = ""
@@ -262,7 +270,7 @@ Config.Logger = 'auto' -- Logger system resource name
 
 Config.SkillMenu = { -- Configuration for skill menu.
     Enabled = true, -- Should the Skill Menu be enabled
-    Command = "skills" -- The comand which opens the skill menu. Set this to false to disable it. Skill menu can be also opened by using exports["bp_lib"]:OpenSkillMenu()
+    Command = "bp_skills" -- The comand which opens the skill menu. Set this to false to disable it. Skill menu can be also opened by using exports["bp_lib"]:OpenSkillMenu()
 }
 
 Config.Groups = { -- Configuration for multiplier jobs
@@ -408,7 +416,7 @@ local function AutoDetectConfig()
             AutoOption("k5_notify"),
             AutoOption("vms_notifyv2")
         }},
-        { key = "WeatherSync", options = {
+        { key = "WeatherSync", resourceKey = "WeatherSyncResource", options = {
             AutoOption("tmc"),
             AutoOption("renewed-weathersync"),
             AutoOption("qb-weathersync"),
@@ -498,6 +506,9 @@ local function AutoDetectConfig()
         { key = "Logger", options = {
             AutoOption("ox_lib"),
             AutoOption("discord")
+        }},
+        { key = "Phone", fallback = "default", options = {
+            AutoOption("lb-phone")
         }}
     }
 
@@ -533,6 +544,13 @@ local function AutoDetectConfig()
                 end
             end
 
+            -- Categories with a built-in fallback never end up disabled
+            if category.fallback and ShouldAutoDetect(Config[category.key]) then
+                Config[category.key] = category.fallback
+                Config.AutoDetected[category.key] = category.fallback
+                DebugPrint(string.format("[bp_lib] Auto-detected %s -> %s (fallback)", category.key, category.fallback))
+            end
+
             -- Warn when the customer explicitly requested 'auto' but nothing was found
             if explicitAuto[category.key] and Config[category.key] == AUTO then
                 print(string.format("^3[bp_lib] WARNING: Config.%s is set to 'auto' but no supported resource was detected. The module will be disabled.^0", category.key))
@@ -561,7 +579,7 @@ local function AutoDetectConfig()
         "Framework", "SQLConnector", "Inventory", "Target", "ProgessBar",
         "Menu", "Input", "TextUI", "Poly", "Notifications",
         "WeatherSync", "Dispatch", "Fuel", "VehicleKeys",
-        "Clothing", "VehicleProperties", "Logger"
+        "Clothing", "VehicleProperties", "Logger", "Phone"
     }
 
     for _, key in ipairs(summaryOrder) do

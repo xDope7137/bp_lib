@@ -1,7 +1,8 @@
 fx_version 'cerulean'
 game 'gta5'
 author 'BP Development'
-version '0.7.0'
+version '0.12.2'
+bp_script 'bp_lib'
 
 lua54 'yes'
 use_experimental_fxv2_oal 'yes'
@@ -16,6 +17,7 @@ client_scripts {
   'client/groups/**', 
   "client/inventory/carryItems.lua", 
   'client/entitySync/**',
+  'client/helpers.lua',
   'client/main.lua', 
   "client/menu/skillMenu.lua",
 }
@@ -32,14 +34,20 @@ shared_scripts {
 
   'shared/config.lua',
   'shared/itemLabels.lua',
+  'shared/helpers.lua',
 }
 
 server_scripts { 
+  'bp_versioncheck.lua',
   -- '@ox_core/imports/server.lua', --Remove the two -- if you're using ox_core in your server
   'shared/discordLogs.lua',
   'utils/**/*.lua',
   'server/groups/**',
   'server/entitySync/class.lua',
+  'server/vehicleIndex/main.lua',
+  'server/helpers.lua',
+  'server/extras.lua',
+  'server/jobextras.lua',
   'server/main.lua',
 }
 
