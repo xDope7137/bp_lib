@@ -135,16 +135,20 @@ Framework = {
                 json.encode({ model = joaat(model), plate = plate }), plate, garage, 1 })
         end,
         -- Moves the plate column and the plate inside the mods JSON. Returns affected rows.
+        -- A changed row fires bp_lib:plateChanged (server/helpers.lua PlateChanged).
         SetPlate = function(identifier, oldPlate, newPlate)
             local row = Core.Database.SingleSync("SELECT mods FROM player_vehicles WHERE plate = ? AND citizenid = ?", { oldPlate, identifier })
             local ok, mods = pcall(json.decode, row and row.mods or "")
+            local rows
             if ok and type(mods) == "table" then
                 mods.plate = newPlate
-                return Core.Database.UpdateSync("UPDATE player_vehicles SET plate = ?, mods = ? WHERE plate = ? AND citizenid = ?",
+                rows = Core.Database.UpdateSync("UPDATE player_vehicles SET plate = ?, mods = ? WHERE plate = ? AND citizenid = ?",
                     { newPlate, json.encode(mods), oldPlate, identifier })
+            else
+                rows = Core.Database.UpdateSync("UPDATE player_vehicles SET plate = ? WHERE plate = ? AND citizenid = ?",
+                    { newPlate, oldPlate, identifier })
             end
-            return Core.Database.UpdateSync("UPDATE player_vehicles SET plate = ? WHERE plate = ? AND citizenid = ?",
-                { newPlate, oldPlate, identifier })
+            return PlateChanged(rows, identifier, oldPlate, newPlate)
         end,
     },
     Money = {

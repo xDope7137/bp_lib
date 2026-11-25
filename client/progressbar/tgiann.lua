@@ -1,30 +1,28 @@
-ProgressBar = function(label, time, options)
-    local p = promise:new()
+-- tgiann's progress bar: exports[resource]:Progress(data, cb(cancelled)). No animation or prop is passed:
+-- bp_lib plays them. Contract: client/progressbar/bp.lua.
+local M = {}
+local function res() return Config.ProgessBarResource or 'tgiann' end
 
-    exports[Config.ProgessBarResource]:Progress({
-        name = "peuron_lib",
+function M.Run(label, time, o)
+    local p = promise.new()
+    exports[res()]:Progress({
+        name = 'bp_lib',
         duration = time,
         label = label,
-        useWhileDead = options.useWhileDead,
-        canCancel = options.canCancel,
+        useWhileDead = o.useWhileDead,
+        canCancel = o.canCancel,
         controlDisables = {
-            car = options.disableCarMovement,
-            move = options.disableMovement,
-            combat = options.disableCombat,
-            mouse = options.disableMouse,
+            car = o.disable.car,
+            move = o.disable.move,
+            combat = o.disable.combat,
+            mouse = o.disable.mouse,
         },
-        animation = options.animation, 
         prop = {},
         propTwo = {},
-    }, function(cancelled)
-        if not cancelled then
-            p:resolve(true)
-        else
-            p:resolve(false)
-        end
-    end)
-
-    return Citizen.Await(p)
+    }, function(cancelled) p:resolve(not cancelled) end)
+    return Citizen.Await(p) == true
 end
 
-return ProgressBar
+function M.Cancel() end
+
+return M

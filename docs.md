@@ -22,7 +22,9 @@ The `Core` table is assembled in `client/main.lua` and `server/main.lua` by load
 - [Core.Notify](#corenotify)
 - [Core.Target](#coretarget)
 - [Core.TextUI](#coretextui)
+- [Core.Prompt](#coreprompt)
 - [Core.ProgressBar](#coreprogressbar)
+- [Core.Anim](#coreanim)
 - [Core.Menu](#coremenu)
 - [Core.Input](#coreinput)
 - [Core.Poly](#corepoly)
@@ -140,6 +142,10 @@ Returns the player's job table — shape depends on the framework (qb-style `{na
 ## Core.Framework (server)
 
 Source: `server/framework/{esx,ox,qb,qbx,tmc}.lua`.
+
+### `Core.Framework.Name`
+The framework found: `'qb'`, `'qbx'`, `'esx'`, `'ox'` or `'tmc'`. The server has no `Framework` field (that is the client's).
+When no framework was found, `Core.Framework` itself is nil on the server.
 
 ### `Core.Framework.RegisterCallback(name, cb)`
 Registers a server callback in a framework-agnostic way. Callback signature: `function(source, cb, ...)`.
@@ -444,6 +450,21 @@ Which of these characters (at most 10 citizen ids) hold the job (or gang) `name`
 not: a list of citizen ids, one query (Qbox `player_groups`, QBCore the `players` JSON, ESX `users.job`).
 False plus `'unsupported'` / `'invalid'` / `'failed'`. For paced staff checks, not for every request.
 
+### `Core.Framework.Vehicles.SetPlate(identifier, oldPlate, newPlate)`
+Qbox, QBCore, ESX. Moves an owned vehicle's plate in the framework's vehicles table (`player_vehicles` /
+`owned_vehicles`, the plate column and the plate inside the mods / props JSON). Returns the affected rows.
+Since 0.15.0 a change that touched a row (affected rows > 0) fires the server event
+`bp_lib:plateChanged` once, after the write returned (see [Events](#events)). A failed or empty change
+fires nothing. Only this framework table is written: every other table keyed by plate belongs to its
+script, which moves its own rows when it hears the event.
+
+```lua
+-- in your script: move your own rows when a plate changes
+AddEventHandler('bp_lib:plateChanged', function(oldPlate, newPlate, identifier)
+    MySQL.update.await('UPDATE my_table SET plate = ? WHERE plate = ?', { newPlate, oldPlate })
+end)
+```
+
 ---
 
 ## Core.Inventory (client)
@@ -609,6 +630,14 @@ TriggerClientEvent('bp_lib:notify', src, 'Title', 'Body', 'success')
 
 Source: `client/target/<system>.lua` (`ox_target`, `qb-target`, `qtarget`).
 
+`Core.Target` is client only. On the server, `Core.TargetScript()` (0.14.0) says which of the three
+runs, so a script can refuse a "target only" setting on a server that has none:
+
+```lua
+local name, folder = Core.TargetScript()   -- 'ox_target', 'ox_target'  or nil
+if not name then print('no target script is running') end
+```
+
 The `options` argument to every Add* function is an array of:
 
 ```lua
@@ -698,27 +727,230 @@ Core.TextUI.Stop()
 
 ---
 
+## Core.Prompt
+
+Source: `client/prompt/` (`anchor.lua`, `draw.lua`, `main.lua`). Client only. Since 0.15.0.
+
+A "press E" prompt that sits on a bone of a vehicle (a wheel, the petrol cap, the engine) or at a place. bp_lib finds the exact point every frame, picks the one prompt that is live, draws it, reads the key and calls your script once.
+
+Older bp_lib: test with `if Core.Prompt ~= nil then`, or `(Core.HelpersVersion or 0) >= 3` on the client.
+
+### The look and the server settings
+
+The server owner sets these in `shared/config.lua`:
+
+| Key | Default | Meaning |
+|---|---|---|
+| `Config.Prompt` | `'3d'` | `'3d'`: the key and the label are drawn in the world, on the point itself. `'textui'`: the server's own text box (`Config.TextUI`) shows `[E] label`, and a small mark is drawn at the point. With no text box loaded, `'textui'` falls back to `'3d'`. |
+| `Config.PromptMark` | `true` | A small mark at each prompt that is in sight but not live (both looks). `false` turns the marks off. |
+| `Config.PromptKeys` | `{ 'E', 'G' }` | The default keys of the two prompt keys. Players can rebind both in the game's key settings (FiveM section). |
+| `Config.PromptStyle` | see the file | The `3d` look: `scale` (0.34), `font` (4), and the colours `key`, `keyBack`, `text`, `back`, `mark`, `fill` as `{ r, g, b }`, plus `backAlpha` (170) and `markSize` (0.0045, a share of the screen width). |
+
+The text box is shared with other scripts. A text another script shows through bp_lib's `Core.TextUI.Draw` is never covered or hidden by a prompt. While it is on the box, the live prompt is drawn in 3D instead, and it moves back to the box when the box is free. A box another script opens directly through its text box resource (for example `lib.showTextUI` of ox_lib, or the export of ps-ui, okokTextUI, jg-textui or qb-core) cannot be seen by bp_lib. A live `textui` prompt may replace that text, and when the prompt goes it hides the box. Scripts that show their own text next to prompts should draw it with `Core.TextUI.Draw`, or the server should use the `3d` look.
+
+The 3D look keeps one size on screen at any distance. At most 24 prompts are in play at once (the nearest), because the game allows 32 drawn points per frame for the whole client.
+
+### `Core.Prompt.Add(options)` (0.15.0)
+
+Returns the prompt's id, or `nil` and a reason: `bad_anchor` (options not a table, or a `netId` that is not a number), `no_entity` (no `coords`, and `entity` does not exist), `no_bone` (`strict` only).
+
+```lua
+local id = Core.Prompt.Add({
+    entity = vehicle,
+    wheel = 'lf',
+    face = 'out',
+    label = 'Remove wheel',
+    onPress = function(id, info)
+        -- info.entity, info.bone, info.source, info.coords
+    end,
+})
+```
+
+Where it sits (give `coords`, or `entity`, or `netId`):
+
+| Field | Meaning |
+|---|---|
+| `coords` | A fixed place: a vector3, `{ x =, y =, z = }` or `{ x, y, z }`. |
+| `entity` | An entity handle. The prompt is removed when the entity is gone. |
+| `netId` | A network id instead of a handle. The prompt waits while the entity is not streamed in and comes back with it. |
+| `bone` | A bone name, or a list tried in order: `{ 'petrolcap', 'petroltank' }`. |
+| `wheel` | A wheel by short name: `lf`, `rf`, `lr`, `rr`, `lm1`, `rm1`, `lm2`, `rm2`, `lm3`, `rm3` (`lm` and `rm` are `lm1` and `rm1`), `f`, `r`. Bikes and bicycles have `lf` (front) and `lr` (rear); `f` and `r` find the same two. A trailer has no front wheels. Any other text is used as a bone name. `wheel` wins over `bone`. |
+| `face` | `'out'` puts a wheel prompt on the outer face of the tyre instead of the hub centre. It turns with the steering. A wheel on the centre line (bikes) stays at the hub. |
+| `offset` | Metres from the point, along the entity's own axes: x right, y forward, z up. It turns with the car. |
+| `fallback` | An entity offset used when the bone does not exist or reads the car's origin. |
+| `strict` | `true`: return `nil, 'no_bone'` when no bone of the list exists, instead of the fallback or the box point. Checked once, in `Add`. |
+
+When a bone is missing and there is no `fallback`, the prompt sits at a point on the model's box: the corner where that wheel would be, the front end for `bonnet`, `engine` and headlights, the rear end for `boot`, exhausts and taillights. A bone that reads the car's own origin counts as missing. A wheel or a door that broke off keeps the prompt where it was. An addon car whose modeller left a bone at the origin gets the fallback or the box point.
+
+How exact it is:
+
+- The point is the bone's position read in the frame it is drawn in, plus `offset` in the car's own axes. On a car this client drives, or one that stands still, the prompt sits on the bone in every frame: measured parked, on a slope, on its side and up to 120 km/h.
+- A car driven by another player was not measured.
+- `face = 'out'`: the game gives no tyre width, so bp_lib works the face out from the rim size. It was within about 1 cm of the real tyre face on a stock car, and about 3 cm too far out on an addon car with wide tyres.
+- An addon car whose modeller put a bone in the wrong place shows the prompt at that wrong place. `setr bp_prompt_debug 2` shows every point (see `Debug`).
+
+What it says and when:
+
+| Field | Default | Meaning |
+|---|---|---|
+| `label` | `''` | The words after the key. |
+| `key` | `'E'` | `'E'` for the first prompt key, `'G'` for the second. Players can rebind both, and the prompt shows their real key. |
+| `hold` | `0` | Milliseconds the key must be held. 0 is a tap. While held, the key cap fills up. Letting go early cancels. |
+| `showDistance` | `6.0` | The small mark appears within this many metres. Never less than `useDistance`. |
+| `useDistance` | `1.5` | The key works within this many metres, player to point. |
+| `onFoot` | `true` | Hidden while the player sits in a vehicle. A prompt with `onFoot = false` that is live in a vehicle keeps E from sounding the horn. |
+| `sight` | `false` | `true`: hidden when something blocks the view from the camera to the point. The prompt's own entity does not count. Checked about 4 times a second. |
+| `enabled` | `true` | `false` hides it without removing it. |
+| `priority` | `0` | The higher one wins when two prompts are in reach. |
+| `mode` | server setting | `'3d'` or `'textui'` to force a look for this prompt. |
+
+Callbacks. None of them is called per frame. Each runs in its own thread, so it may wait. An error in one is caught (printed when `Config.Debug` is on):
+
+| Field | Called |
+|---|---|
+| `onPress(id, info)` | Once per press. `info` holds `entity`, `bone`, `source` and `coords`. Before it fires, bp_lib checks again that the prompt is enabled and the player is within `useDistance`. A second press within 300 ms does nothing. |
+| `onShow(id)` | When this prompt becomes the live one. |
+| `onHide(id, why)` | When it stops being live. `why`: `far`, `sight`, `vehicle`, `gone`, `disabled`, `removed`, `busy` (pause menu or a focused NUI), `other` (another prompt took over). |
+
+There is no `canInteract` callback. Flip `enabled` with `Update` when your own state changes.
+
+Only one prompt is live on the whole client, across every script. Within `useDistance` the highest `priority` wins, then the nearest. The live prompt keeps its place until another is clearly nearer for a moment, so it does not flicker between two wheels. A press does nothing while the pause menu is open or a NUI has focus.
+
+The keys: two key mappings, `+bp_prompt` (default E) and `+bp_prompt_alt` (default G). They are registered when the first prompt is added, so a server whose scripts add none gets no new entries in the key settings. The label is the player's bound key, also after a rebind (F1 to F12 included). On a controller the pickup and detonate controls stand in. A rebind and a controller were not tested in the game.
+
+### `Core.Prompt.Update(id, fields)` (0.15.0)
+
+Changes any `Add` field except the callbacks, `netId` and `strict`. Giving `coords` or `entity` drops the `netId`. Returns `true`, or `false` and a reason (`no_prompt`, `not_owner`, `bad_anchor`, `no_entity`). Only the script that added a prompt can change it.
+
+```lua
+Core.Prompt.Update(id, { label = 'Fit wheel' })
+Core.Prompt.Update(id, { enabled = false })
+```
+
+### `Core.Prompt.Remove(id)` / `Core.Prompt.RemoveAll()` (0.15.0)
+
+`Remove` takes one prompt of the calling script off and returns `true`, or `false` and `no_prompt` / `not_owner`. `RemoveAll` takes all of the calling script's prompts off and returns how many. A live prompt that is removed gets `onHide(id, 'removed')`. When a script stops, bp_lib removes its prompts by itself and calls nothing of it again.
+
+### `Core.Prompt.Wheels(vehicle)` (0.15.0)
+
+The wheels of a vehicle, read from its bones, front axle first and left before right. Works for cars, 6-wheel trucks, trailers and bikes. An empty list when the vehicle does not exist.
+
+```lua
+for _, w in ipairs(Core.Prompt.Wheels(vehicle)) do
+    -- w.name ('lf'), w.bone ('wheel_lf'), w.side ('left', 'right', 'centre'), w.axle (1 = front),
+    -- w.tyre (the number the tyre natives use), w.wheelIndex (the number the wheel natives use, or nil),
+    -- w.offset ({ x, y, z } in the vehicle's axes), w.broken (true when the wheel came off)
+    Core.Prompt.Add({ entity = vehicle, wheel = w.name, face = 'out', label = 'Check tyre' })
+end
+```
+
+`wheelIndex` is nil when the car's own wheel list does not match its wheel bones. `tyre` is nil for `lm3` and `rm3`; for `lm2` and `rm2` it comes from the native docs, since no tested model has those wheels.
+
+### `Core.Prompt.Point(spec)` (0.15.0)
+
+The world point of an anchor right now, with no prompt. Takes the same "where it sits" fields as `Add`, `netId` included. Returns a vector3 and the source (`bone`, `kept`, `fallback`, `box`, `entity`, `coords`), or `nil` and a reason (`bad_anchor`, `no_entity`, `gone`). Use it to walk a ped to a wheel or to place a prop there.
+
+### `Core.Prompt.Debug()` (0.15.0)
+
+For tests. Returns `nil` unless the server has `setr bp_prompt_debug 1`. With it, a list with one row per prompt: `id`, `owner`, `label`, `key`, `mode`, `look` (what the live prompt is drawn as right now), `entity`, `bone`, `source`, `x`, `y`, `z`, `frame` (the game frame the point was worked out in), `dist`, `shown`, `cand`, `why` (only while hidden), `ms` (see `Cost`). `setr bp_prompt_debug 2` also draws a magenta dot on every point, so a server owner can see where each prompt sits on an addon car.
+
+### `Core.Prompt.Cost()` (0.15.0)
+
+For tests. Returns `nil` unless `bp_prompt_debug` is 1 or more. With it: `{ ms, frames, clock, prompts }`, the module's own time per game frame averaged over the last frames (up to 300), and the timer it used. The FiveM client Lua has no clock finer than a frame, so in the game `clock` is `'none'` and `ms` is `nil`. Use `resmon` to see the cost by eye. Nothing is timed while the convar is 0.
+
+`Used by:` none yet.
+
+---
+
 ## Core.ProgressBar
 
-`Core.ProgressBar` is a function (not a table).
+`Core.ProgressBar` is a function. `Core.Progress` (0.15.0) holds it as `Run` plus `Cancel` and `Active`.
 
-Source: `client/progressbar/<system>.lua`.
+Source: `client/progress/main.lua`; the bar itself: `client/progressbar/<system>.lua`.
+
+The bar is drawn by `Config.ProgessBar`: bp_lib's own (`'bp'`, what `'auto'` picks since 0.15.0) or your
+server's (`ox_lib`, `qb`, `progressbar`, `mythic_progbar`, `esx`, `lation_ui`, `tgiann`, `tmc`). Whatever
+draws the bar, bp_lib does the rest itself (0.15.0): it plays the animation and props through
+[Core.Anim](#coreanim), blocks the controls, ends the bar when the player dies, ragdolls, falls, swims or
+is cuffed, and cleans the animation and props up after. The other script never gets the animation.
 
 ### `Core.ProgressBar(label, time, options)`
 - **time:** duration in ms.
-- **options:** `{ useWhileDead, canCancel, disableCarMovement, disableMovement, disableMouse, disableCombat, animation = { animDict, anim, flags } }`.
-- **Returns:** `boolean` — `true` when completed, `false` when cancelled.
+- **options:**
+  - `canCancel`, `useWhileDead`, `allowRagdoll`, `allowFalling`, `allowSwimming`, `allowCuffed` (booleans)
+  - `disable = { move, car, combat, mouse, sprint }` (0.15.0), or the older `disableMovement`,
+    `disableCarMovement`, `disableMouse`, `disableCombat`
+  - `anim` (0.15.0): a [Core.Anim](#coreanim) spec (`dict` + `clip`, or `scenario`), or the older
+    `animation = { animDict, anim, flags }`
+  - `scenario` (0.15.0): a scenario name, the same as `anim = { scenario = ... }`
+  - `props` / `prop` (0.15.0): props in the hands while the bar runs (see Core.Anim)
+- **Returns:** `true` when it ran to the end, `false` when cancelled, interrupted, or another bar was
+  already running. Blocks the calling thread.
 
 ```lua
 local ok = Core.ProgressBar('Picking lock', 5000, {
     canCancel = true,
-    disableMovement = true,
-    animation = { animDict = 'mp_common', anim = 'givetake1_a', flags = 49 }
+    disable = { move = true, combat = true },
+    anim = { dict = 'mp_common', clip = 'givetake1_a', flag = 49 },
 })
 if not ok then return end
 ```
 
-`Used by:` `bp_apartments`, `bp_cookies`.
+### `Core.Progress.Cancel()` / `Core.Progress.Active()` (0.15.0)
+`Cancel` ends the running bar as cancelled (its call returns `false`) -> `true` when one ran.
+`Active` -> `true` while a bar runs.
+
+bp_lib's own bar: look in `Config.ProgressStyle`, cancel key `Config.ProgressCancelKey` (default `X`,
+players can rebind it in the FiveM key settings as "Cancel action (progress bar)").
+
+`Used by:` `bp_apartments`, `bp_cookies`, `bp_mechanic`.
+
+---
+
+## Core.Anim
+
+(0.15.0) Animations, scenarios and props in the hands, started and cleaned up by bp_lib.
+
+Source: `client/anim/main.lua`.
+
+### `Core.Anim.Play(spec)` -> `id` or `nil, reason`
+Never waits: the dictionary and the prop models load in a bp_lib thread, and a handle stopped before
+that is never played. Reasons: `bad_anim`, `no_ped`, `no_dict`, `no_model`.
+
+| Field | Default | Meaning |
+|---|---|---|
+| `dict`, `clip` | | animation dictionary and clip (`animDict`, `anim` are read too) |
+| `flag` | `49` | TaskPlayAnim flag (`flags` is read too) |
+| `blendIn`, `blendOut`, `duration`, `rate` | `3.0`, `1.0`, `-1`, `0.0` | TaskPlayAnim values |
+| `lockX`, `lockY`, `lockZ` | `false` | |
+| `scenario` | | a scenario instead of `dict` (`enter = false` skips its enter animation) |
+| `props` / `prop` | | `{ model, bone = 60309, pos = vec3, rot = vec3, rotOrder = 2 }`, one or a list |
+| `ped` | the player | |
+| `keep` | `false` | play it again when something else cleared it (not while ragdolled, falling or in a vehicle) |
+| `time` | | ms, then it ends by itself |
+| `network` | `true` | props networked (others see them) |
+
+One animation task per ped: a newer `Play` on the same ped takes it over, and stopping the older
+handle then only removes the older props. A handle ends by itself when its ped dies or is gone, and
+when the script that made it stops (everything is cleaned: task, props, dictionary).
+
+### `Core.Anim.Stop(id, now)` -> `true` or `false, 'no_anim' / 'not_owner'`
+Ends the task (blending out; `now = true` snaps) and deletes the props. Only the script that made it.
+
+### `Core.Anim.StopAll(now)` -> count
+Every handle of the calling script.
+
+### `Core.Anim.Active(id)`, `Core.Anim.Playing(id)`, `Core.Anim.Props(id)`
+Handle alive / its animation on the ped right now / its prop entities.
+
+```lua
+local id = Core.Anim.Play({ dict = 'anim@heists@box_carry@', clip = 'idle', flag = 49,
+    props = { { model = 'prop_car_battery_01', bone = 28422, pos = vec3(0.0, -0.1, -0.25) } } })
+-- ...
+Core.Anim.Stop(id)
+```
+
+`Used by:` `bp_mechanic`.
 
 ---
 
@@ -999,6 +1231,12 @@ Core.Database.BatchInsert('daily_totals', { 'account_id', 'day', 'money_in', 'n'
 
 Source: `server/logger/<system>.lua` (`discord`, `ox_lib`).
 
+`Config.Logger = 'auto'` (0.14.0): a log type with a Discord webhook filled in `shared/discordLogs.lua`
+(its own line, or `others`) is sent to Discord; every other type goes to ox_lib's logger when ox_lib
+runs. Before 0.14.0 `'auto'` always took ox_lib's logger when ox_lib ran and the webhooks were ignored.
+The sample line (`'your_log_webhook_url'`) is not a webhook. `Config.Logger = 'discord'` or `'ox_lib'`
+set by hand is used as written.
+
 ### `Core.Logs.GetPlayerData(playerId, isTarget)`
 Builds a markdown block (`**SOURCE**` or `**TARGET**`) including nickname, ids, steam/license/discord/HWID. Used internally by `Send`.
 
@@ -1229,7 +1467,7 @@ Helpers BP scripts used to copy into every resource. Source: `shared/helpers.lua
 Anything that prints or keeps state uses the calling script's name (`GetInvokingResource()`),
 so scripts never share a tag, cache or rate limit. Tests: `tests/helpers.py` (lupa).
 
-Check for them with `Core.HelpersVersion` (1 in 0.10.0, 2 in 0.11.0) and stop with a clear message on
+Check for them with `Core.HelpersVersion` (1 in 0.10.0, 2 in 0.11.0; on the server 3 in 0.12.0 and 4 in 0.14.0; on the client 3 in 0.15.0, `Core.Prompt`). The two sides count apart. Stop with a clear message on
 older bp_lib:
 
 ```lua
@@ -1265,6 +1503,7 @@ A script that uses the 0.11.0 additions checks `(lib.HelpersVersion or 0) >= 2` 
 | `Core.IsLocked(keys)` | server | 0.11.0. true when any of the keys is held by your script. |
 | `Core.IsNear(src, coords, radius)` | server | 0.11.0. true when the player's ped is within `radius` metres of `coords` (vector3, vector4 or `{ x, y, z }`), measured from the server's copy of the ped's position. That stops a page, an event or a callback that only claims a place; it does not stop a teleport or a position cheat, because under OneSync the server's copy comes from that client's own sync data. Also returns the distance. false for no player or no ped. |
 | `Core.Role(src, staff)` | server | 0.11.0. The highest staff role a player holds, from ACE rights and framework groups (each role is checked like `Core.IsAdmin`). See below. |
+| `Core.TargetScript()` | server | 0.14.0. Which target script the server runs right now: `'ox_target'`, `'qb-target'` or `'qtarget'` and the resource's folder name, or `nil` when none is running. Read at call time (a target script started after bp_lib counts). A `Config.Target` set by hand is the only one that counts; with `'auto'` the first one running wins. `Core.Target` itself stays client only. |
 | `Core.NotifyKey(key, kind?, ...)` | client | Same as the server one, for the local player. |
 | `Core.UILocale(prefixes?)` | client | Every key in the script's `locales/en.json`, translated, for its NUI. Optional prefix filter like `{ 'ui_', 'err_' }`. Cached. |
 | `Core.RequestModel(model, timeout?)` | client | Hash once loaded, nil when missing or timed out (5000 ms). Needs a thread. |
@@ -1415,6 +1654,7 @@ Server callbacks backing `Core.EntitySync.Create*`. Not generally invoked direct
 |---|---|---|---|
 | `bp_lib:RemoveVehKeys` | local | `(vehicle, plate)` | Optional companion to `Core.VehicleKeys.Give` for backends that support removal |
 | `bp_lib:group:OwnerChanged` | local | – | Fired by some group backends when ownership migrates |
+| `bp_lib:plateChanged` | local (0.15.0) | `(oldPlate, newPlate, identifier)` | Fired once by `Core.Framework.Vehicles.SetPlate` (Qbox, QBCore, ESX) after a write that changed a row; never on failure. Plates and the owner's character id exactly as passed to `SetPlate`. Server only, never a net event: listen with `AddEventHandler`, never `RegisterNetEvent`. Move your own rows from the old plate to the new one, comparing plates the way your tables store them |
 
 ---
 
@@ -1455,7 +1695,7 @@ set bp_announce_hours 6    # re-check interval in hours, 0 = only at start
 | `Config.VehicleKeys` | `vehiclekeys/` (client only) |
 | `Config.Clothing` | `clothing/` (client only) |
 | `Config.VehicleProperties` | `vehicleproperties/` (client only) |
-| `Config.Logger` | `logger/` (server only) |
+| `Config.Logger` | `logger/` (server only). `'auto'` with a webhook in `shared/discordLogs.lua` loads `logger/auto.lua` (0.14.0) |
 
 Other knobs:
 
@@ -1467,6 +1707,10 @@ Config.SkillMenu = {
     Enabled = true,
     Command = 'bp_skills',               -- false to disable the command
 }
+Config.Prompt      = '3d'         -- 0.15.0, Core.Prompt look: '3d' or 'textui'
+Config.PromptMark  = true         -- the small mark at prompts not yet in reach
+Config.PromptKeys  = { 'E', 'G' } -- default keys of the two prompt key mappings
+Config.PromptStyle = { ... }      -- size, font and colours of the '3d' look (see Core.Prompt)
 Config.Groups = {
     MemberLimit = 4,
     Timeout     = { min = 0, sec = 10 }, -- delay before owner migration after disconnect

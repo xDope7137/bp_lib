@@ -316,5 +316,52 @@ function Helpers.Webhook(url, embed, username)
     return true
 end
 
+-- ----------------------------------------------------------- target script --
+
+local TARGET_SCRIPTS = { 'ox_target', 'qb-target', 'qtarget' } -- the order shared/config.lua looks in
+
+local function resourceRuns(name)
+    if type(name) ~= 'string' or name == '' then return false end
+    local state = GetResourceState(name)
+    return state == 'started' or state == 'starting'
+end
+
+--- Which target script players get, asked on the server (0.14.0): 'ox_target', 'qb-target' or
+--- 'qtarget' and the resource's folder name, or nil when none of them is running right now.
+--- Looks at the server's resources at call time, so a target script that starts after bp_lib,
+--- or stops later, is answered right. A Config.Target set by hand names the only script that
+--- counts (its folder is Config.TargetResource); with 'auto' the first one running wins.
+function Helpers.TargetScript()
+    local auto = type(Config.AutoDetected) == 'table' and Config.AutoDetected.Target ~= nil
+    local picked = Config.Target
+    if type(picked) == 'string' and picked ~= '' and picked ~= 'auto' and not auto then
+        local folder = type(Config.TargetResource) == 'string' and Config.TargetResource ~= '' and Config.TargetResource or picked
+        if resourceRuns(folder) then return picked, folder end
+        return nil
+    end
+    if auto and resourceRuns(Config.TargetResource) then return picked, Config.TargetResource end
+    for _, name in ipairs(TARGET_SCRIPTS) do
+        if resourceRuns(name) then return name, name end
+    end
+    return nil
+end
+
+-- ------------------------------------------------------------ plate change --
+
+--- (0.15.0) Called by every framework's Vehicles.SetPlate with what its UPDATE answered.
+--- When a row really changed, fires the server-only event
+--- bp_lib:plateChanged(oldPlate, newPlate, identifier) so other scripts move their own
+--- rows keyed by plate. Never a net event. Returns `rows` unchanged.
+function PlateChanged(rows, identifier, oldPlate, newPlate)
+    local n = tonumber(rows)
+    if n and n > 0 then
+        local ok, err = pcall(function()
+            TriggerEvent('bp_lib:plateChanged', oldPlate, newPlate, identifier)
+        end)
+        if not ok then print(('^1[bp_lib] bp_lib:plateChanged: %s^0'):format(tostring(err))) end
+    end
+    return rows
+end
+
 Helpers.Server = { 'IsAdmin', 'Identifier', 'DisplayName', 'RateLimit', 'Bucket', 'NotifyKey', 'Alert', 'Webhook',
-    'Lock', 'IsLocked', 'IsNear', 'Role' }
+    'Lock', 'IsLocked', 'IsNear', 'Role', 'TargetScript' }

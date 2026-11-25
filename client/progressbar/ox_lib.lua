@@ -1,27 +1,23 @@
-ProgressBar = function(label, time, options)
-    local anim = false
-    
-    if options.animation then
-        anim = {
-            clip = options.animation.anim,
-            dict = options.animation.animDict,
-            flag = options.animation.flags
-        }
-    end
+-- ox_lib's bar (lib.progressBar). bp_lib plays and clears the animation itself (client/progress/main.lua):
+-- ox_lib gets no anim and no prop. Contract: client/progressbar/bp.lua.
+local M = {}
 
+function M.Run(label, time, o)
     return lib.progressBar({
         duration = time,
         label = label,
-        useWhileDead = options.useWhileDead,
-        canCancel = options.canCancel,
-        disable = {
-            car = options.disableCarMovement,
-            move = options.disableMovement,
-            mouse = options.disableMouse,
-            combat = options.disableCombat,
-        },
-        anim = anim
-    }) 
+        useWhileDead = o.useWhileDead,
+        allowRagdoll = o.allowRagdoll,
+        allowFalling = o.allowFalling,
+        allowSwimming = o.allowSwimming,
+        allowCuffed = o.allowCuffed,
+        canCancel = o.canCancel,
+        disable = o.disable,
+    }) == true
 end
 
-return ProgressBar
+function M.Cancel()
+    if lib.progressActive() then pcall(lib.cancelProgress) end
+end
+
+return M

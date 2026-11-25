@@ -28,7 +28,7 @@ end)
 Core.Framework = LoadModule("framework", Config.Framework)
 Core.Inventory = LoadModule("inventory", Config.Inventory)
 Core.VehicleKeys = LoadModule("vehiclekeys", Config.VehicleKeys)
-Core.ProgressBar = LoadModule("progressbar", Config.ProgessBar)
+-- Core.ProgressBar and Core.Progress: client/progress/main.lua (0.15.0), after Core.Anim
 Core.Notify = LoadModule("notifications", Config.Notifications)
 Core.Weather = LoadModule("weathersync", Config.WeatherSync)
 Core.Dispatch = LoadModule("dispatch", Config.Dispatch)
@@ -49,7 +49,9 @@ Core.Utils = Utils
 
 -- Shared helpers (shared/helpers.lua, client/helpers.lua): lib.Say, lib.Plate.Normalize ...
 -- 1 = 0.10.0 helpers, 2 = 0.11.0 (adds Core.Amount on this side; the rest is server only).
-Core.HelpersVersion = 2
+-- 3 = 0.15.0: Core.Prompt (client/prompt/), Core.Anim (client/anim/), Core.Progress and bp_lib's own
+-- progress bar (client/progress/). The server counts apart (4 there = 0.14.0).
+Core.HelpersVersion = 3
 for _, list in ipairs({ Helpers.Shared, Helpers.Client }) do
     for _, name in ipairs(list) do Core[name] = Helpers[name] end
 end

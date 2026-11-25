@@ -57,6 +57,23 @@ function VersionCheck(repository)
 	end)
 end
 
+--[[ Which logger file to load. Config.Logger = 'auto' used to mean ox_lib's logger whenever ox_lib
+     runs, so a Discord webhook filled in shared/discordLogs.lua was never used. Since 0.14.0 a
+     filled-in webhook wins: 'auto' then loads server/logger/auto.lua (Discord for the log types
+     that have a webhook, ox_lib's logger for the rest). A Config.Logger set by hand is not changed,
+     and the sample line ('your_log_webhook_url') does not count as a webhook. ]]
+function PickLogger()
+    local auto = Config.Logger == nil or (type(Config.AutoDetected) == 'table' and Config.AutoDetected.Logger ~= nil)
+    if not auto then return Config.Logger end
+    for _, url in pairs(type(Logs) == 'table' and Logs or {}) do
+        if type(url) == 'string' and url:find('^https?://%S+') then
+            print(("^5[%s] ^2Logger -> discord for the log types with a webhook in shared/discordLogs.lua^0"):format(resource))
+            return 'auto'
+        end
+    end
+    return Config.Logger
+end
+
 -- bp_lib's own update check is bp_versioncheck.lua, against tebex.bhavikp.in/versions.
 -- VersionCheck stays exported as Core.Version for scripts that still pass a GitHub repo.
 
@@ -73,7 +90,7 @@ Core.Inventory = LoadModule("inventory", Config.Inventory)
 Core.Dispatch = LoadModule("dispatch", Config.Dispatch)
 Core.Phone = LoadModule("phone", Config.Phone)
 Core.Weather = LoadModule("weathersync", Config.WeatherSync)
-Core.Logs = LoadModule("logger", Config.Logger)
+Core.Logs = LoadModule("logger", PickLogger())
 Core.EntitySync = EntitySync
 Core.Groups = Groups
 Core.Vehicles = VehicleIndex
@@ -88,7 +105,8 @@ Core.Utils = Utils
 -- SavePlayer, Database.Transaction and BatchInsert, the inventory metadata helpers.
 -- 3 = 0.12.0: the job and gang reads (Framework.JobOf, GangOf, OnJob, JobList, PaycheckSociety,
 -- CharactersWithJob; server/jobextras.lua).
-Core.HelpersVersion = 3
+-- 4 = 0.14.0: TargetScript (which target script the server runs).
+Core.HelpersVersion = 4
 for _, list in ipairs({ Helpers.Shared, Helpers.Server }) do
     for _, name in ipairs(list) do Core[name] = Helpers[name] end
 end

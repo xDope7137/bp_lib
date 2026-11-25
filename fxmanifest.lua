@@ -1,7 +1,7 @@
 fx_version 'cerulean'
 game 'gta5'
 author 'BP Development'
-version '0.13.0'
+version '0.15.0'
 bp_script 'bp_lib'
 
 lua54 'yes'
@@ -18,7 +18,12 @@ client_scripts {
   "client/inventory/carryItems.lua", 
   'client/entitySync/**',
   'client/helpers.lua',
-  'client/main.lua', 
+  'client/main.lua',
+  'client/prompt/anchor.lua',
+  'client/prompt/draw.lua',
+  'client/prompt/main.lua',
+  'client/anim/main.lua',
+  'client/progress/main.lua',
   "client/menu/skillMenu.lua",
 }
 

@@ -4,7 +4,6 @@ TextUI = {
     Draw = function(text, pos)
         if text ~= TextUI.Text then 
             TextUI.Text = text
-            lib.showTextUI(text)       
             exports[Config.TextUIResource]:Open(text, 'lightgrey', 'right', false)     
         end
     end,

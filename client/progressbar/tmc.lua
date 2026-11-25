@@ -1,39 +1,20 @@
+-- TMC's progress bar. No animation is passed: bp_lib plays it. Contract: client/progressbar/bp.lua.
 local TMC = exports.core:getCoreObject()
+local M = {}
 
-ProgressBar = function(label, time, options)
-    local anim = false
-    local animProps = {}
-    
-    if options.animation then
-        if options.animation.animDict and options.animation.anim then
-            animProps = {
-                animDict = options.animation.animDict,
-                anim = options.animation.anim,
-                flags = options.animation.flags or 0
-            }
-        end
-    end
-
-    local tmcOptions = {
-        canCancel = options.canCancel,
-        disableMovement = options.disableMovement,
-        disableCarMovement = options.disableCarMovement,
-        disableMouse = options.disableMouse,
-        disableCombat = options.disableCombat,
-        useWhileDead = options.useWhileDead
-    }
-
-    local promise = promise.new()
-    
-    TMC.Functions.ProgressBar(function(complete)
-        if complete then
-            promise:resolve(true)
-        else
-            promise:resolve(false)
-        end
-    end, time, label, animProps, tmcOptions)
-
-    return Citizen.Await(promise)
+function M.Run(label, time, o)
+    local p = promise.new()
+    TMC.Functions.ProgressBar(function(complete) p:resolve(complete == true) end, time, label, {}, {
+        canCancel = o.canCancel,
+        disableMovement = o.disable.move,
+        disableCarMovement = o.disable.car,
+        disableMouse = o.disable.mouse,
+        disableCombat = o.disable.combat,
+        useWhileDead = o.useWhileDead,
+    })
+    return Citizen.Await(p) == true
 end
 
-return ProgressBar
+function M.Cancel() end
+
+return M

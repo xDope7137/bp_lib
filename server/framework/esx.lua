@@ -130,16 +130,20 @@ Framework = {
             ]], { identifier, plate, props, garage })
         end,
         -- Moves the plate column and the plate inside the vehicle props JSON. Returns affected rows.
+        -- A changed row fires bp_lib:plateChanged (server/helpers.lua PlateChanged).
         SetPlate = function(identifier, oldPlate, newPlate)
             local row = Core.Database.SingleSync("SELECT vehicle FROM owned_vehicles WHERE plate = ? AND owner = ?", { oldPlate, identifier })
             local ok, props = pcall(json.decode, row and row.vehicle or "")
+            local rows
             if ok and type(props) == "table" then
                 props.plate = newPlate
-                return Core.Database.UpdateSync("UPDATE owned_vehicles SET plate = ?, vehicle = ? WHERE plate = ? AND owner = ?",
+                rows = Core.Database.UpdateSync("UPDATE owned_vehicles SET plate = ?, vehicle = ? WHERE plate = ? AND owner = ?",
                     { newPlate, json.encode(props), oldPlate, identifier })
+            else
+                rows = Core.Database.UpdateSync("UPDATE owned_vehicles SET plate = ? WHERE plate = ? AND owner = ?",
+                    { newPlate, oldPlate, identifier })
             end
-            return Core.Database.UpdateSync("UPDATE owned_vehicles SET plate = ? WHERE plate = ? AND owner = ?",
-                { newPlate, oldPlate, identifier })
+            return PlateChanged(rows, identifier, oldPlate, newPlate)
         end,
     },
     Money = {

@@ -57,15 +57,34 @@ Config.TargetResource = nil -- The target system folder name that you're using (
 ]]
 
 Config.ProgessBar = 'auto'
-Config.ProgessBarResource = nil -- The progress bar system folder name that you're using (auto-filled when using 'auto')
+Config.ProgessBarResource = nil -- The progress bar folder name, only when yours is not the default name below
 --SUPPORTED PROGRESS BAR SCRIPT NAMES TO PUT IN: Config.ProgessBar = ""
 --[[
-    'auto'  - (RECOMMENDED) Scans your server and picks the correct progress bar automatically
+    'auto'          - (DEFAULT) bp_lib's own bar ('bp'). To use your server's bar, put its name below
+    bp              - bp_lib's own bar (look: Config.ProgressStyle)
+    ox_lib          - ox_lib's lib.progressBar
+    qb              - QBCore.Functions.Progressbar (needs the progressbar resource)
+    progressbar     - the standalone progressbar resource (default folder: progressbar)
+    mythic_progbar  - (default folder: mythic_progbar)
+    esx             - esx_progressbar (default folder: esx_progressbar)
+    lation_ui       - (default folder: lation_ui)
+    tgiann          - (default folder: tgiann)
     tmc
-    ox_lib  - (Uncomment ox_lib import in bp_lib/fxmanifest.lua file)
-    qb
-    tgiann
+    Whatever draws the bar, bp_lib plays the animation and props itself and cleans them up after.
 ]]
+Config.ProgressCancelKey = 'X' -- Default key that cancels bp_lib's own bar. Players can rebind it in the game's key settings
+Config.ProgressStyle = { -- Look of bp_lib's own bar. Colours are { red, green, blue }, 0 to 255
+    x = 0.5, y = 0.9,            -- where the bar sits, as a share of the screen
+    width = 0.18,                -- its minimum width, as a share of the screen
+    scale = 0.36,                -- text size
+    font = 4,                    -- GTA font number
+    text = { 255, 255, 255 },    -- the label
+    back = { 17, 24, 29 },       -- the plate behind it
+    backAlpha = 220,             -- how solid that plate is, 0 to 255
+    track = { 255, 255, 255 },   -- the empty part of the bar (drawn faint)
+    fill = { 86, 229, 184 },      -- the part already done
+    cancelText = 'Cancel',       -- the word next to the cancel key
+}
 
 Config.Menu = 'auto'
 Config.MenuResource = nil -- The menu system folder name that you're using (auto-filled when using 'auto')
@@ -102,6 +121,27 @@ Config.TextUIResource = nil -- The TextUI system folder name that you're using (
     jg-textui
     qb
 ]]
+
+Config.Prompt = '3d' -- How "press E" prompts of BP scripts look (Core.Prompt)
+--[[
+    '3d'     - (DEFAULT) The key and the label are drawn in the world, right on the wheel, door or place
+    'textui' - Your server's own text box (the Config.TextUI choice above) shows the key and the label;
+               only a small mark is drawn at the place itself
+]]
+Config.PromptMark = true -- true = a small mark shows where a prompt is before you are close enough to use it
+Config.PromptKeys = { 'E', 'G' } -- Default keys of the two prompt keys. Players can rebind both in the game's key settings (FiveM)
+Config.PromptStyle = { -- Look of the '3d' prompt. Colours are { red, green, blue }, 0 to 255
+    scale = 0.34,                -- text size
+    font = 4,                    -- GTA font number
+    key = { 255, 255, 255 },     -- the key letter
+    keyBack = { 20, 22, 26 },    -- the box behind the key
+    text = { 255, 255, 255 },    -- the label
+    back = { 20, 22, 26 },       -- the plate behind the label
+    backAlpha = 170,             -- how solid that plate is, 0 to 255
+    mark = { 255, 255, 255 },    -- the small mark
+    markSize = 0.0045,           -- its size, as a share of the screen width
+    fill = { 76, 175, 80 },      -- the bar that fills while a key is held
+}
 
 Config.Poly = 'auto'
 Config.PolyResource = nil -- The Polyzone system folder name that you're using (auto-filled when using 'auto')
@@ -262,7 +302,9 @@ Config.VehiclePropertiesResource = nil -- The vehicle properties system resource
 Config.Logger = 'auto' -- Logger system resource name
 --SUPPORTED LOGGER SCRIPT NAMES TO PUT IN: Config.Logger = ""
 --[[
-    'auto'  - (RECOMMENDED) Scans your server and picks the correct logger automatically
+    'auto'  - (RECOMMENDED) Scans your server and picks the correct logger automatically.
+              A Discord webhook you fill in shared/discordLogs.lua is used for its log type
+              (or for every type on the line named others); the rest goes to ox_lib's logger.
     discord
     ox_lib  - (Uncomment ox_lib import in bp_lib/fxmanifest.lua file)
 ]]
@@ -369,12 +411,7 @@ local function AutoDetectConfig()
             AutoOption("qb-target"),
             AutoOption("qtarget")
         }},
-        { key = "ProgessBar", resourceKey = "ProgessBarResource", options = {
-            AutoOption("ox_lib"),
-            AutoOption("qb", { "qb-core" }),
-            AutoOption("tgiann"),
-            AutoOption("tmc")
-        }},
+        { key = "ProgessBar", resourceKey = "ProgessBarResource", fallback = "bp", options = {} },
         { key = "Menu", resourceKey = "MenuResource", options = {
             AutoOption("ox_lib"),
             AutoOption("ps-ui"),
